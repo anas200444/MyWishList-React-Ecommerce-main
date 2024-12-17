@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom"; // Add this import
 import { auth, db } from "../Firebase/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import {
@@ -49,7 +50,7 @@ export function AuthProvider({ children }) {
     return signInWithEmailAndPassword(auth, email, password);
   }
 
-  async function logout() {
+  function logout() {
     return signOut(auth);
   }
 
@@ -58,26 +59,41 @@ export function AuthProvider({ children }) {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-
-      const userDocRef = doc(db, "users", user.uid);
+  
+      // Check if the user exists in the Firestore database
+      const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
-
+  
+      // If the user does not exist in Firestore, create a new document
       if (!userDoc.exists()) {
         await setDoc(userDocRef, {
           name: user.displayName,
           email: user.email,
           dateOfBirth: null,
           profilePicture: user.photoURL || null,
-          wallet: 0, // Initialize wallet with 0 for new Google user
         });
+      } else {
+        // If the user exists, ensure the profile is up-to-date
+        const userData = userDoc.data();
+        const updatedData = {
+          name: user.displayName || userData.name,
+          email: user.email || userData.email,
+          profilePicture: user.photoURL || userData.profilePicture,
+        };
+  
+        // Update profile fields if any information is missing or outdated
+        await updateDoc(userDocRef, updatedData);
       }
-
+  
       setCurrentUser(user);
+      return result;
     } catch (error) {
-      console.error("Failed to sign in with Google:", error);
+      console.error('Failed to sign in with Google', error);
       throw error;
     }
   }
+  
+
 
   async function resetPassword(email) {
     try {
