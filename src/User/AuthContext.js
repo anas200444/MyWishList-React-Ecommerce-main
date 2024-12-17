@@ -1,7 +1,6 @@
-
 import React, { useContext, useState, useEffect } from "react";
-import { auth, db } from "../Firebase/firebase"; // Adjusted path after moving firebase.js
-import { doc, getDoc, setDoc } from "firebase/firestore"; // Adjust if necessary
+import { auth, db } from "../Firebase/firebase";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -10,7 +9,6 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   sendPasswordResetEmail,
-  verifyBeforeUpdateEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from "firebase/auth";
@@ -26,7 +24,25 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   async function signup(email, password) {
-    return createUserWithEmailAndPassword(auth, email, password);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Initialize wallet with 0 for new user
+      const userDocRef = doc(db, "users", user.uid);
+      await setDoc(userDocRef, {
+        email: user.email,
+        wallet: 0,  // Initialize wallet to 0
+        name: user.displayName || null,
+        dateOfBirth: null,
+        profilePicture: user.photoURL || null,
+      });
+
+      setCurrentUser(user);
+    } catch (error) {
+      console.error("Failed to sign up:", error);
+      throw error;
+    }
   }
 
   async function login(email, password) {
@@ -52,13 +68,13 @@ export function AuthProvider({ children }) {
           email: user.email,
           dateOfBirth: null,
           profilePicture: user.photoURL || null,
+          wallet: 0, // Initialize wallet with 0 for new Google user
         });
       }
 
       setCurrentUser(user);
-      return result;
     } catch (error) {
-      console.error("Failed to sign in with Google", error);
+      console.error("Failed to sign in with Google:", error);
       throw error;
     }
   }
@@ -85,10 +101,10 @@ export function AuthProvider({ children }) {
     if (currentUser) {
       try {
         await reauthenticate(password);
-        await verifyBeforeUpdateEmail(currentUser, newEmail);
-        alert(
-          "A verification email has been sent to your new email address. Please verify it to complete the email update."
-        );
+        await updateDoc(doc(db, "users", currentUser.uid), {
+          email: newEmail,
+        });
+        alert("Email updated successfully");
       } catch (error) {
         console.error("Error updating email:", error);
         throw error;
@@ -97,22 +113,47 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       setLoading(false);
+
+      if (user) {
+        // Retrieve wallet for the user from Firestore
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          // Store wallet amount in state if available
+          setWallet(userData.wallet || 0);
+        }
+      }
     });
 
     return unsubscribe;
   }, []);
 
+  const [wallet, setWallet] = useState(0);
+
+  // Function to update wallet balance in Firestore
+  const updateWallet = async (amount) => {
+    if (currentUser) {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      await updateDoc(userDocRef, { wallet: amount });
+      setWallet(amount); // Update local state as well
+    }
+  };
+
   const value = {
     currentUser,
+    wallet,
     signup,
     login,
     logout,
     loginWithGoogle,
     resetPassword,
     changeEmail,
+    updateWallet,  // Add this to the context value
   };
 
   return (

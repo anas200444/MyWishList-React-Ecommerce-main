@@ -1,5 +1,8 @@
 import { createContext, useState, useEffect } from "react";
 import { PRODUCTS } from "../products";
+import { db } from "../Firebase/firebase"; // Ensure correct path
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { useAuth } from "../User/AuthContext"; // Import the useAuth hook
 
 // Context Initialization
 export const ShopContext = createContext(null);
@@ -15,14 +18,27 @@ const getDefaultCart = () => {
 
 // Context Provider Component
 export const ShopContextProvider = (props) => {
-  // Retrieve cart and wallet data from localStorage if available
-  const savedCart = localStorage.getItem("cartItems");
-  const savedWallet = localStorage.getItem("wallet");
+  const { currentUser } = useAuth(); // Use currentUser from AuthContext
+  const [cartItems, setCartItems] = useState(getDefaultCart());
+  const [wallet, setWallet] = useState(0);
 
-  const [cartItems, setCartItems] = useState(
-    savedCart ? JSON.parse(savedCart) : getDefaultCart()
-  );
-  const [wallet, setWallet] = useState(savedWallet ? JSON.parse(savedWallet) : 100);
+  // Fetch user's wallet from Firestore or local storage when currentUser changes
+  useEffect(() => {
+    const storedWallet = localStorage.getItem("wallet"); // Retrieve wallet from localStorage
+    if (storedWallet) {
+      setWallet(Number(storedWallet)); // Set wallet if it's in localStorage
+    }
+
+    if (currentUser) {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      getDoc(userDocRef).then((docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const userData = docSnapshot.data();
+          setWallet(userData.wallet || 0); // Set wallet from Firestore
+        }
+      });
+    }
+  }, [currentUser]);
 
   // Total Cart Amount Calculation
   const getTotalCartAmount = () => {
@@ -65,8 +81,13 @@ export const ShopContextProvider = (props) => {
 
   // Add to Wallet
   const addToWallet = (amount) => {
-    const newWalletBalance = wallet + amount;
-    setWallet(newWalletBalance);
+    const newBalance = wallet + amount;
+    setWallet(newBalance); // Update local state
+    if (currentUser) {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      updateDoc(userDocRef, { wallet: newBalance }); // Update wallet in Firestore
+    }
+    localStorage.setItem("wallet", newBalance); // Store the new wallet balance in localStorage
   };
 
   const contextValue = {
@@ -83,8 +104,7 @@ export const ShopContextProvider = (props) => {
   useEffect(() => {
     // Ensure cart and wallet are saved in localStorage whenever they change
     localStorage.setItem("cartItems", JSON.stringify(cartItems));
-    localStorage.setItem("wallet", JSON.stringify(wallet));
-  }, [cartItems, wallet]);
+  }, [cartItems]);
 
   return (
     <ShopContext.Provider value={contextValue}>
