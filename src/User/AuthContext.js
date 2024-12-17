@@ -29,22 +29,24 @@ export function AuthProvider({ children }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Initialize wallet with 0 for new user
+      // Initialize wallet and cart with default values for the new user
       const userDocRef = doc(db, "users", user.uid);
       await setDoc(userDocRef, {
         email: user.email,
         wallet: 0,  // Initialize wallet to 0
+        cartItems: {}, // Initialize an empty cart
         name: user.displayName || null,
         dateOfBirth: null,
         profilePicture: user.photoURL || null,
       });
-
+  
       setCurrentUser(user);
     } catch (error) {
       console.error("Failed to sign up:", error);
       throw error;
     }
   }
+  
 
   async function login(email, password) {
     return signInWithEmailAndPassword(auth, email, password);

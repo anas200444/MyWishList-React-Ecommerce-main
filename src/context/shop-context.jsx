@@ -26,7 +26,7 @@ export const ShopContextProvider = (props) => {
   useEffect(() => {
     const storedCartItems = localStorage.getItem("cartItems");
     const storedWallet = localStorage.getItem("wallet");
-
+  
     if (!currentUser) {
       // If no user is logged in, load from localStorage
       if (storedCartItems) {
@@ -42,13 +42,16 @@ export const ShopContextProvider = (props) => {
         if (docSnapshot.exists()) {
           const userData = docSnapshot.data();
           setWallet(userData.wallet || 0);
-          if (userData.cartItems) {
-            setCartItems(userData.cartItems); // Set cart items from Firestore
-          }
+          setCartItems(userData.cartItems || getDefaultCart()); // Default to an empty cart if not available
+        } else {
+          // If no user data exists, initialize with default values
+          setWallet(0);
+          setCartItems(getDefaultCart()); // Set default cart if no cart data in Firestore
         }
       });
     }
-  }, [currentUser]);
+  }, [currentUser]);  // Dependency on currentUser to refresh data when user changes
+  
 
   // Total Cart Amount Calculation
   const getTotalCartAmount = () => {
