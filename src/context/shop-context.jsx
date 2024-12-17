@@ -22,19 +22,29 @@ export const ShopContextProvider = (props) => {
   const [cartItems, setCartItems] = useState(getDefaultCart());
   const [wallet, setWallet] = useState(0);
 
-  // Fetch user's wallet from Firestore or local storage when currentUser changes
+  // Fetch user's cart and wallet from Firestore or local storage when currentUser changes
   useEffect(() => {
-    const storedWallet = localStorage.getItem("wallet"); // Retrieve wallet from localStorage
-    if (storedWallet) {
-      setWallet(Number(storedWallet)); // Set wallet if it's in localStorage
-    }
+    const storedCartItems = localStorage.getItem("cartItems");
+    const storedWallet = localStorage.getItem("wallet");
 
-    if (currentUser) {
+    if (!currentUser) {
+      // If no user is logged in, load from localStorage
+      if (storedCartItems) {
+        setCartItems(JSON.parse(storedCartItems));
+      }
+      if (storedWallet) {
+        setWallet(parseFloat(storedWallet));
+      }
+    } else {
+      // If user is logged in, fetch from Firestore
       const userDocRef = doc(db, "users", currentUser.uid);
       getDoc(userDocRef).then((docSnapshot) => {
         if (docSnapshot.exists()) {
           const userData = docSnapshot.data();
-          setWallet(userData.wallet || 0); // Set wallet from Firestore
+          setWallet(userData.wallet || 0);
+          if (userData.cartItems) {
+            setCartItems(userData.cartItems); // Set cart items from Firestore
+          }
         }
       });
     }
@@ -56,6 +66,12 @@ export const ShopContextProvider = (props) => {
   const addToCart = (itemId) => {
     const updatedCart = { ...cartItems, [itemId]: cartItems[itemId] + 1 };
     setCartItems(updatedCart);
+    if (!currentUser) {
+      localStorage.setItem("cartItems", JSON.stringify(updatedCart)); // Save cart to localStorage
+    } else {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      updateDoc(userDocRef, { cartItems: updatedCart }); // Save cart to Firestore
+    }
   };
 
   // Remove from Cart Function
@@ -63,6 +79,12 @@ export const ShopContextProvider = (props) => {
     if (cartItems[itemId] > 0) {
       const updatedCart = { ...cartItems, [itemId]: cartItems[itemId] - 1 };
       setCartItems(updatedCart);
+      if (!currentUser) {
+        localStorage.setItem("cartItems", JSON.stringify(updatedCart)); // Save cart to localStorage
+      } else {
+        const userDocRef = doc(db, "users", currentUser.uid);
+        updateDoc(userDocRef, { cartItems: updatedCart }); // Save cart to Firestore
+      }
     }
   };
 
@@ -71,12 +93,24 @@ export const ShopContextProvider = (props) => {
     if (newAmount >= 0) {
       const updatedCart = { ...cartItems, [itemId]: newAmount };
       setCartItems(updatedCart);
+      if (!currentUser) {
+        localStorage.setItem("cartItems", JSON.stringify(updatedCart)); // Save cart to localStorage
+      } else {
+        const userDocRef = doc(db, "users", currentUser.uid);
+        updateDoc(userDocRef, { cartItems: updatedCart }); // Save cart to Firestore
+      }
     }
   };
 
   // Checkout Function
   const checkout = () => {
     setCartItems(getDefaultCart());
+    if (!currentUser) {
+      localStorage.setItem("cartItems", JSON.stringify(getDefaultCart())); // Reset cart in localStorage
+    } else {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      updateDoc(userDocRef, { cartItems: getDefaultCart() }); // Reset cart in Firestore
+    }
   };
 
   // Add to Wallet
@@ -104,7 +138,8 @@ export const ShopContextProvider = (props) => {
   useEffect(() => {
     // Ensure cart and wallet are saved in localStorage whenever they change
     localStorage.setItem("cartItems", JSON.stringify(cartItems));
-  }, [cartItems]);
+    localStorage.setItem("wallet", wallet); // Save wallet to localStorage as well
+  }, [cartItems, wallet]);
 
   return (
     <ShopContext.Provider value={contextValue}>

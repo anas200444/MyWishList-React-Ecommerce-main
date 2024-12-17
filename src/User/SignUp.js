@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useAuth } from '../User/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore'; // Correct import for Firestore
+import { getAuth, fetchSignInMethodsForEmail, createUserWithEmailAndPassword } from 'firebase/auth'; // Correct imports for Firebase Auth
 import { db } from '../Firebase/firebase'; // Adjust path as needed
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
@@ -37,9 +38,22 @@ export default function SignUp() {
       setError('');
       setLoading(true);
 
+      // Check if the email is already used
+      const auth = getAuth();
+      const methods = await fetchSignInMethodsForEmail(auth, emailRef.current.value);
+
+      if (methods.length > 0) {
+        // If methods exist, the email is already associated with an account
+        return setError('Email is already in use');
+      }
+
       // Create a new user in Firebase Auth
-      const userCredential = await signup(emailRef.current.value, passwordRef.current.value);
+      const userCredential = await createUserWithEmailAndPassword(auth, emailRef.current.value, passwordRef.current.value);
       const user = userCredential.user;
+
+      if (!user) {
+        throw new Error('User creation failed');
+      }
 
       // Save user data to Firestore with the UID of the newly created user
       const userDocRef = doc(db, 'users', user.uid);
@@ -53,7 +67,7 @@ export default function SignUp() {
       navigate('/');
     } catch (error) {
       console.error('Failed to create an account', error);
-      setError(`Failed to create an account (${error.code})`);
+      setError(`Failed to create an account: ${error.message}`);
     } finally {
       setLoading(false);
     }
