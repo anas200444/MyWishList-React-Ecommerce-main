@@ -205,34 +205,5 @@ export const PRODUCTS = [
   price: 63.0,
   productImage: product33,
 },
-{
-  id: 34,
-  productName: "The five minute journal",
-  price: 118.0,
-  productImage: product34,
-},
-{
-  id: 35,
-  productName: "The Obstacle Is the Way Book",
-  price: 62.0,
-  productImage: product35,
-},
-{
-  id: 36,
-  productName: "The daily stoic book",
-  price: 68.0,
-  productImage: product36,
-},
-{
-  id: 37,
-  productName: "Digital alarm clock",
-  price: 72.0,
-  productImage: product37,
-},
-{
-  id: 38,
-  productName: "Desk lamp with touch control with USB A+C charging ports",
-  price: 143.0,
-  productImage: product38,
-},
+
 ];

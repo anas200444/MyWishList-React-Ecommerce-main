@@ -1,15 +1,14 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
+import ReactDOM from "react-dom";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App"; // Assuming App is the main component
+import { AuthProvider } from "./User/AuthContext"; // Update with the correct path
 
-
-// Etry point of the application. Imports the App component and renders it inside a React.StrictMode component. 
-// React.StrictMode is a wrapper component that checks for potential problems in an application during development.
-
-const root = ReactDOM.createRoot(document.getElementById("root"));
-
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+ReactDOM.render(
+  <BrowserRouter>
+    <AuthProvider> {/* Only wrap the App here */}
+      <App />
+    </AuthProvider>
+  </BrowserRouter>,
+  document.getElementById("root")
 );

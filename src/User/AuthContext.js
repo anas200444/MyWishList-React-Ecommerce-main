@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // Add this import
+import { useNavigate } from "react-router-dom";
 import { auth, db } from "../Firebase/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import {
@@ -23,6 +23,9 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [wallet, setWallet] = useState(0);
+  const [role, setRole] = useState("user");  // New state for storing user role
+  const [error, setError] = useState(null);  // New state for error messages
 
   async function signup(email, password) {
     try {
@@ -38,18 +41,28 @@ export function AuthProvider({ children }) {
         name: user.displayName || null,
         dateOfBirth: null,
         profilePicture: user.photoURL || null,
+        role: "user",  // Default role is user
       });
   
       setCurrentUser(user);
+      setError(null);  // Clear any previous error state
     } catch (error) {
+      setError("Failed to sign up: " + error.message);  // Set the error message
       console.error("Failed to sign up:", error);
-      throw error;
     }
   }
-  
 
   async function login(email, password) {
-    return signInWithEmailAndPassword(auth, email, password);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      setCurrentUser(user);
+      setError(null);  // Clear any previous error state
+    } catch (error) {
+      setError("Failed to log in: " + error.message);  // Set the error message
+      console.error("Failed to log in:", error);
+    }
   }
 
   function logout() {
@@ -73,6 +86,7 @@ export function AuthProvider({ children }) {
           email: user.email,
           dateOfBirth: null,
           profilePicture: user.photoURL || null,
+          role: "user",  // Default role is user
         });
       } else {
         // If the user exists, ensure the profile is up-to-date
@@ -88,20 +102,18 @@ export function AuthProvider({ children }) {
       }
   
       setCurrentUser(user);
-      return result;
+      setError(null);  // Clear any previous error state
     } catch (error) {
+      setError("Failed to sign in with Google: " + error.message);  // Set the error message
       console.error('Failed to sign in with Google', error);
-      throw error;
     }
   }
-  
-
 
   async function resetPassword(email) {
     try {
       await sendPasswordResetEmail(auth, email);
     } catch (error) {
-      throw error;
+      setError("Failed to reset password: " + error.message);  // Set the error message
     }
   }
 
@@ -110,8 +122,8 @@ export function AuthProvider({ children }) {
     try {
       await reauthenticateWithCredential(currentUser, credential);
     } catch (error) {
+      setError("Error reauthenticating: " + error.message);  // Set the error message
       console.error("Error reauthenticating:", error);
-      throw error;
     }
   }
 
@@ -123,9 +135,10 @@ export function AuthProvider({ children }) {
           email: newEmail,
         });
         alert("Email updated successfully");
+        setError(null);  // Clear any previous error state
       } catch (error) {
+        setError("Error updating email: " + error.message);  // Set the error message
         console.error("Error updating email:", error);
-        throw error;
       }
     }
   }
@@ -136,22 +149,21 @@ export function AuthProvider({ children }) {
       setLoading(false);
 
       if (user) {
-        // Retrieve wallet for the user from Firestore
+        // Retrieve user data from Firestore, including role
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          // Store wallet amount in state if available
+          // Store wallet and role in state if available
           setWallet(userData.wallet || 0);
+          setRole(userData.role || "user");  // Default to "user" if role is missing
         }
       }
     });
 
     return unsubscribe;
   }, []);
-
-  const [wallet, setWallet] = useState(0);
 
   // Function to update wallet balance in Firestore
   const updateWallet = async (amount) => {
@@ -165,13 +177,15 @@ export function AuthProvider({ children }) {
   const value = {
     currentUser,
     wallet,
+    role,  // Provide the role in the context value
+    error,  // Include error in the context value
     signup,
     login,
     logout,
     loginWithGoogle,
     resetPassword,
     changeEmail,
-    updateWallet,  // Add this to the context value
+    updateWallet,
   };
 
   return (
