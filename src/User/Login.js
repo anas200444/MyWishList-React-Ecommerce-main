@@ -30,25 +30,28 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-
+  
     try {
       setError('');
       setLoading(true);
       await login(emailRef.current.value, passwordRef.current.value);
-
+  
       if (rememberRef.current.checked) {
         localStorage.setItem('rememberedEmail', emailRef.current.value);
       } else {
         localStorage.removeItem('rememberedEmail');
       }
-
+  
+      // Redirect only after successful login and account validation
       navigate('/');
-    } catch {
-      setError('Failed to log in');
+    } catch (error) {
+      setError(error.message || 'Failed to log in'); // Display a specific error message
     } finally {
       setLoading(false);
     }
   }
+  
+  
 
   async function handleGoogleLogin() {
     try {

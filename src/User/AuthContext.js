@@ -56,15 +56,25 @@ export function AuthProvider({ children }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
+  
+      // Check if the user exists in Firestore
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+  
+      if (!userDoc.exists()) {
+        throw new Error("No account found for this user.");
+      }
+  
       setCurrentUser(user);
-      setError(null);  // Clear any previous error state
+      setError(null); // Clear any previous error state
     } catch (error) {
-      setError("Failed to log in: " + error.message);  // Set the error message
       console.error("Failed to log in:", error);
+      throw new Error(error.message); // Re-throw the error for handleSubmit to catch
     }
   }
-
+  
+  
+  
   function logout() {
     return signOut(auth);
   }
@@ -145,25 +155,29 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
       setLoading(false);
-
+  
       if (user) {
-        // Retrieve user data from Firestore, including role
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
-
+  
         if (userDoc.exists()) {
+          setCurrentUser(user);
           const userData = userDoc.data();
-          // Store wallet and role in state if available
           setWallet(userData.wallet || 0);
-          setRole(userData.role || "user");  // Default to "user" if role is missing
+          setRole(userData.role || "user");
+        } else {
+          console.warn("User logged in but does not have a valid Firestore account.");
+          setCurrentUser(null); // Set current user to null if Firestore entry is invalid
         }
+      } else {
+        setCurrentUser(null); // No user is logged in
       }
     });
-
+  
     return unsubscribe;
   }, []);
+  
 
   // Function to update wallet balance in Firestore
   const updateWallet = async (amount) => {
