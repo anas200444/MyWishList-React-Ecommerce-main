@@ -76,17 +76,19 @@ export default function SignUp() {
   async function handleGoogleSignup() {
     try {
       setLoading(true);
-      const googleUser = await loginWithGoogle();
-      const { displayName, email, photoURL } = googleUser.user; // Get the Google profile picture URL
-
-      const userDocRef = doc(db, 'users', googleUser.user.uid);
+      const user = await loginWithGoogle();  // Wait for the Google login to complete
+      
+      // After successfully logging in with Google, we now have the user object
+      const { displayName, email, photoURL } = user;  // Get the Google profile data
+  
+      const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
         name: displayName,
         email: email,
         dateOfBirth: null,
         profilePicture: photoURL || defaultProfilePicture, // Use the Google profile picture or default if not available
       });
-
+  
       navigate('/');
     } catch (error) {
       console.error('Failed to sign up with Google', error);
@@ -95,6 +97,7 @@ export default function SignUp() {
       setLoading(false);
     }
   }
+  
 
   return (
     <div className="container-s">

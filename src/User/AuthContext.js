@@ -84,11 +84,11 @@ export function AuthProvider({ children }) {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-  
+    
       // Check if the user exists in the Firestore database
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
-  
+    
       // If the user does not exist in Firestore, create a new document
       if (!userDoc.exists()) {
         await setDoc(userDocRef, {
@@ -106,18 +106,18 @@ export function AuthProvider({ children }) {
           email: user.email || userData.email,
           profilePicture: user.photoURL || userData.profilePicture,
         };
-  
+    
         // Update profile fields if any information is missing or outdated
         await updateDoc(userDocRef, updatedData);
       }
   
-      setCurrentUser(user);
-      setError(null);  // Clear any previous error state
+      return user;  // Return the user so that SignUp can handle the next steps
     } catch (error) {
       setError("Failed to sign in with Google: " + error.message);  // Set the error message
       console.error('Failed to sign in with Google', error);
     }
   }
+  
 
   async function resetPassword(email) {
     try {
