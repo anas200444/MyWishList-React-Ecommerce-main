@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useAuth } from '../User/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { doc, setDoc } from 'firebase/firestore'; // Correct import for Firestore
-import { getAuth, fetchSignInMethodsForEmail, createUserWithEmailAndPassword } from 'firebase/auth'; // Correct imports for Firebase Auth
-import { db } from '../Firebase/firebase'; // Adjust path as needed
+import { doc, setDoc } from 'firebase/firestore';
+import { getAuth, fetchSignInMethodsForEmail, createUserWithEmailAndPassword } from 'firebase/auth';
+import { db } from '../Firebase/firebase'; 
+import bcrypt from 'bcryptjs';  // Import bcryptjs for hashing
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 
@@ -12,18 +13,17 @@ export default function SignUp() {
   const emailRef = useRef();
   const passwordRef = useRef();
   const passwordConfirmRef = useRef();
-  const dobRef = useRef(); // New date of birth field
+  const dobRef = useRef(); 
   const { signup, loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false); // New state for password confirmation visibility
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const navigate = useNavigate();
 
-  const defaultProfilePicture = 'https://example.com/default-profile-picture.png'; // Replace with your default profile picture URL
+  const defaultProfilePicture = 'https://example.com/default-profile-picture.png'; 
 
   useEffect(() => {
-    // Scroll to the top of the page when the component mounts
     window.scrollTo(0, 0);
   }, []);
 
@@ -38,14 +38,15 @@ export default function SignUp() {
       setError('');
       setLoading(true);
 
-      // Check if the email is already used
       const auth = getAuth();
       const methods = await fetchSignInMethodsForEmail(auth, emailRef.current.value);
 
       if (methods.length > 0) {
-        // If methods exist, the email is already associated with an account
         return setError('Email is already in use');
       }
+
+      // Hash the password using bcrypt before saving it
+      const hashedPassword = bcrypt.hashSync(passwordRef.current.value, 10); // 10 is the salt rounds
 
       // Create a new user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, emailRef.current.value, passwordRef.current.value);
@@ -62,6 +63,7 @@ export default function SignUp() {
         email: emailRef.current.value,
         dateOfBirth: dobRef.current.value,
         profilePicture: defaultProfilePicture, // Use the default profile picture
+        hashedPassword: hashedPassword, // Save the hashed password in Firestore
       });
 
       navigate('/');
@@ -76,19 +78,17 @@ export default function SignUp() {
   async function handleGoogleSignup() {
     try {
       setLoading(true);
-      const user = await loginWithGoogle();  // Wait for the Google login to complete
-      
-      // After successfully logging in with Google, we now have the user object
-      const { displayName, email, photoURL } = user;  // Get the Google profile data
-  
+      const user = await loginWithGoogle();
+      const { displayName, email, photoURL } = user;
+
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
         name: displayName,
         email: email,
         dateOfBirth: null,
-        profilePicture: photoURL || defaultProfilePicture, // Use the Google profile picture or default if not available
+        profilePicture: photoURL || defaultProfilePicture,
       });
-  
+
       navigate('/');
     } catch (error) {
       console.error('Failed to sign up with Google', error);
@@ -97,7 +97,6 @@ export default function SignUp() {
       setLoading(false);
     }
   }
-  
 
   return (
     <div className="container-s">
