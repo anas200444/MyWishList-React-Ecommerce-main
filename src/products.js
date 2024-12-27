@@ -27,11 +27,7 @@ import product30 from "./assets/products/30.jpg";
 import product31 from "./assets/products/31.jpg";
 import product32 from "./assets/products/32.jpg";
 import product33 from "./assets/products/33.jpg";
-import product34 from "./assets/products/34.jpeg";
-import product35 from "./assets/products/35.jpg";
-import product36 from "./assets/products/36.jpg";
-import product37 from "./assets/products/37.jpg";
-import product38 from "./assets/products/38.jpg";
+
 
 
 export const PRODUCTS = [

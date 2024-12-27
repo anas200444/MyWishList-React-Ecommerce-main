@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect } from "react";
 import { PRODUCTS } from "../products";
 import { db } from "../Firebase/firebase"; // Ensure correct path
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc,addDoc, serverTimestamp,collection } from "firebase/firestore";
 import { useAuth } from "../User/AuthContext"; // Import the useAuth hook
 
 // Context Initialization
@@ -105,16 +105,59 @@ export const ShopContextProvider = (props) => {
     }
   };
 
-  // Checkout Function
-  const checkout = () => {
-    setCartItems(getDefaultCart());
-    if (!currentUser) {
-      localStorage.setItem("cartItems", JSON.stringify(getDefaultCart())); // Reset cart in localStorage
-    } else {
-      const userDocRef = doc(db, "users", currentUser.uid);
-      updateDoc(userDocRef, { cartItems: getDefaultCart() }); // Reset cart in Firestore
+  const checkout = async () => {
+    try {
+        // Prepare the order items with product names and quantities
+        const orderedItems = PRODUCTS.map(product => {
+            const quantity = cartItems[product.id]; // Get quantity from cartItems
+            if (quantity > 0) {
+                return {
+                    productName: product.productName, // Product name
+                    quantity: quantity, // Quantity of items
+                    price: product.price, // Price of the product
+                };
+            }
+            return null;
+        }).filter(item => item !== null); // Filter out null items (items with quantity 0)
+
+        // Get the current user's profile (username)
+        let username = "";
+        if (currentUser) {
+            const userDocRef = doc(db, "users", currentUser.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+                username = userDoc.data().name || ""; // Get the name from Firestore user data
+            }
+        }
+
+        // Prepare the order data
+        const orderData = {
+            userId: currentUser.uid, // Save user ID
+            username: username, // Save username (from user profile)
+            orderedItems: orderedItems, // Save the ordered items with their quantity
+            totalAmount: getTotalCartAmount(), // Save total amount
+            date: serverTimestamp(), // Save timestamp
+            status: "Pending", // Set order status to "Pending" initially
+        };
+
+        // Save the order to Firestore in the 'orders' collection
+        await addDoc(collection(db, "orders"), orderData);
+
+        // Reset the cart after order is placed
+        setCartItems(getDefaultCart());
+        if (!currentUser) {
+            localStorage.setItem("cartItems", JSON.stringify(getDefaultCart())); // Reset cart in localStorage
+        } else {
+            const userDocRef = doc(db, "users", currentUser.uid);
+            updateDoc(userDocRef, { cartItems: getDefaultCart() }); // Reset cart in Firestore
+        }
+
+        alert("Checkout successful! Your order has been placed.");
+    } catch (error) {
+        console.error("Error during checkout:", error);
+        alert("Failed to place the order. Please try again later.");
     }
-  };
+};
 
   // Add to Wallet
   const addToWallet = (amount) => {
