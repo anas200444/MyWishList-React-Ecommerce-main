@@ -2,7 +2,9 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useAuth } from '../User/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../Firebase/firebase'; // Adjust path as needed
+import { getAuth, fetchSignInMethodsForEmail, createUserWithEmailAndPassword } from 'firebase/auth';
+import { db } from '../Firebase/firebase'; 
+import bcrypt from 'bcryptjs';  // Import bcryptjs for hashing
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 
@@ -11,18 +13,17 @@ export default function SignUp() {
   const emailRef = useRef();
   const passwordRef = useRef();
   const passwordConfirmRef = useRef();
-  const dobRef = useRef(); // New date of birth field
+  const dobRef = useRef(); 
   const { signup, loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false); // New state for password confirmation visibility
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const navigate = useNavigate();
 
-  const defaultProfilePicture = 'https://example.com/default-profile-picture.png'; // Replace with your default profile picture URL
+  const defaultProfilePicture = 'https://example.com/default-profile-picture.png'; 
 
   useEffect(() => {
-    // Scroll to the top of the page when the component mounts
     window.scrollTo(0, 0);
   }, []);
 
@@ -37,9 +38,23 @@ export default function SignUp() {
       setError('');
       setLoading(true);
 
+      const auth = getAuth();
+      const methods = await fetchSignInMethodsForEmail(auth, emailRef.current.value);
+
+      if (methods.length > 0) {
+        return setError('Email is already in use');
+      }
+
+      // Hash the password using bcrypt before saving it
+      const hashedPassword = bcrypt.hashSync(passwordRef.current.value, 10); // 10 is the salt rounds
+
       // Create a new user in Firebase Auth
-      const userCredential = await signup(emailRef.current.value, passwordRef.current.value);
+      const userCredential = await createUserWithEmailAndPassword(auth, emailRef.current.value, passwordRef.current.value);
       const user = userCredential.user;
+
+      if (!user) {
+        throw new Error('User creation failed');
+      }
 
       // Save user data to Firestore with the UID of the newly created user
       const userDocRef = doc(db, 'users', user.uid);
@@ -48,12 +63,13 @@ export default function SignUp() {
         email: emailRef.current.value,
         dateOfBirth: dobRef.current.value,
         profilePicture: defaultProfilePicture, // Use the default profile picture
+        hashedPassword: hashedPassword, // Save the hashed password in Firestore
       });
 
       navigate('/');
     } catch (error) {
       console.error('Failed to create an account', error);
-      setError(`Failed to create an account (${error.code})`);
+      setError(`Failed to create an account: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -62,15 +78,15 @@ export default function SignUp() {
   async function handleGoogleSignup() {
     try {
       setLoading(true);
-      const googleUser = await loginWithGoogle();
-      const { displayName, email, photoURL } = googleUser.user; // Get the Google profile picture URL
+      const user = await loginWithGoogle();
+      const { displayName, email, photoURL } = user;
 
-      const userDocRef = doc(db, 'users', googleUser.user.uid);
+      const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
         name: displayName,
         email: email,
         dateOfBirth: null,
-        profilePicture: photoURL || defaultProfilePicture, // Use the Google profile picture or default if not available
+        profilePicture: photoURL || defaultProfilePicture,
       });
 
       navigate('/');
