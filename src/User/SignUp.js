@@ -14,7 +14,7 @@ export default function SignUp() {
   const passwordRef = useRef();
   const passwordConfirmRef = useRef();
   const dobRef = useRef(); 
-  const { signup, loginWithGoogle } = useAuth();
+  const {loginWithGoogle} = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
