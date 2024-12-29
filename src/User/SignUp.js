@@ -7,6 +7,7 @@ import { db } from '../Firebase/firebase';
 import bcrypt from 'bcryptjs';  // Import bcryptjs for hashing
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import { getCSRFToken } from "../utlis/csrf"; // Import CSRF token utility
 
 export default function SignUp() {
   const nameRef = useRef();
@@ -14,7 +15,7 @@ export default function SignUp() {
   const passwordRef = useRef();
   const passwordConfirmRef = useRef();
   const dobRef = useRef(); 
-  const {loginWithGoogle} = useAuth();
+  const { loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +30,7 @@ export default function SignUp() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const csrfToken = getCSRFToken(); // Get CSRF token
 
     if (passwordRef.current.value !== passwordConfirmRef.current.value) {
       return setError('Passwords do not match');
@@ -64,6 +66,7 @@ export default function SignUp() {
         dateOfBirth: dobRef.current.value,
         profilePicture: defaultProfilePicture, // Use the default profile picture
         hashedPassword: hashedPassword, // Save the hashed password in Firestore
+  
       });
 
       navigate('/');

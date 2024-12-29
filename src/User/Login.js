@@ -3,8 +3,7 @@ import { useAuth } from '../User/AuthContext'; // Corrected path for AuthContext
 import { useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'; // Ensure you have the right package installed
-
-
+import { getCSRFToken } from '../utlis/csrf'; // Import CSRF token helper
 
 export default function Login() {
   const emailRef = useRef();
@@ -30,19 +29,14 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const csrfToken = getCSRFToken(); // Get CSRF token before submitting
   
     try {
       setError('');
       setLoading(true);
-      await login(emailRef.current.value, passwordRef.current.value);
+      await login(emailRef.current.value, passwordRef.current.value, csrfToken); // Pass the CSRF token
   
-      if (rememberRef.current.checked) {
-        localStorage.setItem('rememberedEmail', emailRef.current.value);
-      } else {
-        localStorage.removeItem('rememberedEmail');
-      }
-  
-      // Redirect only after successful login and account validation
+      // Redirect after successful login
       navigate('/');
     } catch (error) {
       setError(error.message || 'Failed to log in'); // Display a specific error message
@@ -50,8 +44,6 @@ export default function Login() {
       setLoading(false);
     }
   }
-  
-  
 
   async function handleGoogleLogin() {
     try {
@@ -67,7 +59,6 @@ export default function Login() {
 
   return (
     <div className="container">
-      
       <div className="login-box">
         <h2 className="login-text">Log In</h2>
         {error && <p className="error">{error}</p>}
@@ -145,7 +136,6 @@ export default function Login() {
           </div>
         </form>
       </div>
-     
     </div>
   );
 }
