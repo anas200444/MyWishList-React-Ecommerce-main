@@ -1,13 +1,11 @@
-// src/utils/cookie-utils.js
 import Cookies from 'js-cookie';
 
 export const setCookie = (name, value, options = {}) => {
   const defaultOptions = {
-    expires: 1, // 1 day
+    expires: 7, // Set to a longer expiry period
     secure: process.env.NODE_ENV === 'production', // Only send cookie over HTTPS in production
     sameSite: 'strict',
-    httpOnly: true, // Cookie only accessible via HTTP(S), not JavaScript
-    path: '/'
+    path: '/' // Ensure cookies are accessible across your domain
   };
 
   Cookies.set(name, value, { ...defaultOptions, ...options });
@@ -23,10 +21,10 @@ export const removeCookie = (name) => {
 
 export const setSessionCookie = (token) => {
   setCookie('session', token, {
-    expires: 1/24, // 1 hour
+    expires: 1/24, // 1 hour for session token
     secure: true,
     sameSite: 'strict',
-    httpOnly: true
+    path: '/'
   });
 };
 
@@ -36,7 +34,7 @@ export const setAuthTokens = (accessToken, refreshToken) => {
     expires: 1/24, // 1 hour
     secure: true,
     sameSite: 'strict',
-    httpOnly: true
+    path: '/'
   });
 
   // Store refresh token with longer expiry
@@ -44,7 +42,7 @@ export const setAuthTokens = (accessToken, refreshToken) => {
     expires: 7, // 7 days
     secure: true,
     sameSite: 'strict',
-    httpOnly: true
+    path: '/'
   });
 };
 
@@ -97,37 +95,4 @@ export const refreshTokenIfNeeded = async () => {
     clearAuthTokens();
     throw new Error('Session expired. Please login again.');
   }
-};
-
-// Helper for making authenticated requests
-export const makeAuthenticatedRequest = async (url, options = {}) => {
-  const accessToken = getCookie('accessToken');
-  
-  if (!accessToken) {
-    throw new Error('No access token available');
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...options.headers,
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
-
-  if (response.status === 401) {
-    // Token expired, try to refresh
-    const newAccessToken = await refreshTokenIfNeeded();
-    
-    // Retry the request with new token
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        'Authorization': `Bearer ${newAccessToken}`,
-      },
-    });
-  }
-
-  return response;
 };

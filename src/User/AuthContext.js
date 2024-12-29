@@ -18,6 +18,7 @@ import {
   clearAuthTokens,
   setSessionCookie,
   validateSession,
+  getCookie
   // makeAuthenticatedRequest,
 } from "../utlis/cookie-utils";
 import { getCSRFToken, validateCSRFToken } from "../utlis/csrf";
@@ -191,22 +192,22 @@ export function AuthProvider({ children }) {
       }
     }
   }
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(false);
-
+  
       if (user) {
+        // Check if the session and token are valid
         const isValidSession = validateSession();
         if (!isValidSession) {
           clearAuthTokens();
           setCurrentUser(null);
           return;
         }
-
+  
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
-
+  
         if (userDoc.exists()) {
           setCurrentUser(user);
           const userData = userDoc.data();
@@ -217,14 +218,23 @@ export function AuthProvider({ children }) {
           setCurrentUser(null);
         }
       } else {
-        clearAuthTokens();
-        setCurrentUser(null);
+        // Check for valid session cookies in case user refreshes page
+        const sessionToken = getCookie('session');
+        const accessToken = getCookie('accessToken');
+        
+        if (sessionToken && accessToken) {
+          // Token is valid, restore the session
+          setCurrentUser(user); // You may want to revalidate the user's Firestore info here
+        } else {
+          clearAuthTokens();
+          setCurrentUser(null);
+        }
       }
     });
-
+  
     return unsubscribe;
   }, []);
-
+  
   const updateWallet = async (amount) => {
     if (currentUser) {
       const userDocRef = doc(db, "users", currentUser.uid);
