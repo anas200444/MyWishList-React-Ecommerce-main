@@ -30,7 +30,6 @@ export const setSessionCookie = (token) => {
   });
 };
 
-// Function to handle JWT storage in cookies
 export const setAuthTokens = (accessToken, refreshToken) => {
   // Store access token with shorter expiry
   setCookie('accessToken', accessToken, {
@@ -55,7 +54,6 @@ export const clearAuthTokens = () => {
   removeCookie('session');
 };
 
-// Session validation helper
 export const validateSession = () => {
   const sessionToken = getCookie('session');
   const accessToken = getCookie('accessToken');
@@ -73,7 +71,6 @@ export const validateSession = () => {
   }
 };
 
-// JWT refresh helper
 export const refreshTokenIfNeeded = async () => {
   const refreshToken = getCookie('refreshToken');
   if (!refreshToken) {
@@ -100,4 +97,37 @@ export const refreshTokenIfNeeded = async () => {
     clearAuthTokens();
     throw new Error('Session expired. Please login again.');
   }
+};
+
+// Helper for making authenticated requests
+export const makeAuthenticatedRequest = async (url, options = {}) => {
+  const accessToken = getCookie('accessToken');
+  
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+
+  if (response.status === 401) {
+    // Token expired, try to refresh
+    const newAccessToken = await refreshTokenIfNeeded();
+    
+    // Retry the request with new token
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${newAccessToken}`,
+      },
+    });
+  }
+
+  return response;
 };

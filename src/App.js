@@ -10,23 +10,62 @@ import Login from "./User/Login";
 import SignUp from "./User/SignUp";
 import ForgotPassword from "./User/Forgotpassword";
 import Profile from "./User/Profile";
-import { AdminPanel } from "./Admin/AdminPanel"; // Correct path to AdminPanel
-import { AdminRoute } from "./Routes/AdminRoute"; // Correct path to AdminRoute
+import { AdminPanel } from "./Admin/AdminPanel"; 
+import { AdminRoute } from "./Routes/AdminRoute"; 
+import ProtectedRoute from "./Routes/ProtectedRoute"; 
 
 function App() {
   return (
     <div className="App">
-      <ShopContextProvider> {/* Wrap only ShopContextProvider */}
+      <ShopContextProvider>
         <Navbar />
         <Routes>
-          <Route path="/" element={<Shop />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/gameplay" element={<GamePlay />} />
+          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgotpassword" element={<ForgotPassword />} />
-          <Route path="/profile" element={<Profile />} />
+
+          {/* Protected Routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Shop />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contact"
+            element={
+              <ProtectedRoute>
+                <Contact />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cart"
+            element={
+              <ProtectedRoute>
+                <Cart />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gameplay"
+            element={
+              <ProtectedRoute>
+                <GamePlay />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/admin"
             element={

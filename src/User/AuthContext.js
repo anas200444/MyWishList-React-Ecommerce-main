@@ -13,7 +13,14 @@ import {
   EmailAuthProvider,
 } from "firebase/auth";
 import bcrypt from "bcryptjs"; // Import bcrypt for hashing
-import { getCSRFToken, validateCSRFToken } from '../utlis/csrf';
+import {
+  setAuthTokens,
+  clearAuthTokens,
+  setSessionCookie,
+  validateSession,
+  // makeAuthenticatedRequest,
+} from "../utlis/cookie-utils";
+import { getCSRFToken, validateCSRFToken } from "../utlis/csrf";
 
 const AuthContext = createContext(null);
 
@@ -28,27 +35,23 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState("user");
   const [error, setError] = useState(null);
 
-  // Save CSRF token to Firebase
   const saveCSRFTokenToDatabase = async (userId, token) => {
     const csrfDocRef = doc(db, "csrfTokens", userId);
     await setDoc(csrfDocRef, { token });
   };
 
-  // Fetch CSRF token from Firebase
   const fetchCSRFTokenFromDatabase = async (userId) => {
     const csrfDocRef = doc(db, "csrfTokens", userId);
     const csrfDoc = await getDoc(csrfDocRef);
     return csrfDoc.exists() ? csrfDoc.data().token : null;
   };
 
-  // Signup function with CSRF token generation
   async function signup(email, password) {
     try {
-      const hashedPassword = bcrypt.hashSync(password, 10); // Hash password
+      const hashedPassword = bcrypt.hashSync(password, 10);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Generate and save CSRF token
       const csrfToken = getCSRFToken();
       await saveCSRFTokenToDatabase(user.uid, csrfToken);
 
@@ -61,48 +64,53 @@ export function AuthProvider({ children }) {
         dateOfBirth: null,
         profilePicture: user.photoURL || null,
         role: "user",
-        hashedPassword: hashedPassword, // Store the hashed password in Firestore
+        hashedPassword: hashedPassword,
       });
 
       setCurrentUser(user);
       setError(null);
     } catch (error) {
       setError("Failed to sign up: " + error.message);
-      console.error("Failed to sign up:", error);
     }
   }
 
   async function login(email, password, csrfToken) {
     try {
-      // Validate the CSRF token before continuing
-      validateCSRFToken(csrfToken); // This will throw an error if the token is invalid or expired
+      validateCSRFToken(csrfToken);
 
-      // First, sign in the user using email and password
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-  
-      // Fetch user data from Firestore
+
+      const idToken = await user.getIdToken();
+      const refreshToken = await user.getIdToken(true);
+
+      setAuthTokens(idToken, refreshToken);
+      setSessionCookie(idToken);
+
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
       if (!userDoc.exists()) {
         throw new Error("No account found for this user.");
       }
-  
-      // Set the current user in the app state
+
       setCurrentUser(user);
       setError(null);
-  
+
       return user;
     } catch (error) {
-      setError(error.message); // Display specific error message
-      console.error("Failed to log in:", error);
+      setError(error.message);
       throw new Error(error.message);
     }
   }
 
   async function logout() {
-    localStorage.removeItem('csrfToken'); // Clear CSRF token from localStorage
-    return signOut(auth);
+    try {
+      clearAuthTokens();
+      await signOut(auth);
+      setCurrentUser(null);
+    } catch (error) {
+      setError("Failed to log out: " + error.message);
+    }
   }
 
   async function loginWithGoogle() {
@@ -110,10 +118,16 @@ export function AuthProvider({ children }) {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-    
-      const userDocRef = doc(db, 'users', user.uid);
+
+      const idToken = await user.getIdToken();
+      const refreshToken = await user.getIdToken(true);
+
+      setAuthTokens(idToken, refreshToken);
+      setSessionCookie(idToken);
+
+      const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
-    
+
       if (!userDoc.exists()) {
         await setDoc(userDocRef, {
           name: user.displayName,
@@ -136,8 +150,8 @@ export function AuthProvider({ children }) {
       // Generate and save CSRF token for Google login user
       const csrfToken = getCSRFToken();
       await saveCSRFTokenToDatabase(user.uid, csrfToken);
-  
-      return user;
+
+      setCurrentUser(user);
     } catch (error) {
       setError("Failed to sign in with Google: " + error.message);
       console.error('Failed to sign in with Google', error);
@@ -183,6 +197,13 @@ export function AuthProvider({ children }) {
       setLoading(false);
 
       if (user) {
+        const isValidSession = validateSession();
+        if (!isValidSession) {
+          clearAuthTokens();
+          setCurrentUser(null);
+          return;
+        }
+
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
 
@@ -196,6 +217,7 @@ export function AuthProvider({ children }) {
           setCurrentUser(null);
         }
       } else {
+        clearAuthTokens();
         setCurrentUser(null);
       }
     });
@@ -203,7 +225,6 @@ export function AuthProvider({ children }) {
     return unsubscribe;
   }, []);
 
-  // Function to update wallet balance in Firestore
   const updateWallet = async (amount) => {
     if (currentUser) {
       const userDocRef = doc(db, "users", currentUser.uid);
