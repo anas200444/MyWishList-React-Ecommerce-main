@@ -8,13 +8,14 @@ import bcrypt from 'bcryptjs';  // Import bcryptjs for hashing
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 
+
 export default function SignUp() {
   const nameRef = useRef();
   const emailRef = useRef();
   const passwordRef = useRef();
   const passwordConfirmRef = useRef();
   const dobRef = useRef(); 
-  const {loginWithGoogle} = useAuth();
+  const { loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +30,7 @@ export default function SignUp() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+   
 
     if (passwordRef.current.value !== passwordConfirmRef.current.value) {
       return setError('Passwords do not match');
@@ -64,6 +66,7 @@ export default function SignUp() {
         dateOfBirth: dobRef.current.value,
         profilePicture: defaultProfilePicture, // Use the default profile picture
         hashedPassword: hashedPassword, // Save the hashed password in Firestore
+  
       });
 
       navigate('/');
@@ -190,6 +193,7 @@ export default function SignUp() {
           </div>
         </form>
       </div>
+
     </div>
   );
-}
+} 

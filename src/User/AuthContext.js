@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from "react";  // Added 'useContext' import
+import React, { createContext, useState, useEffect, useContext } from "react";
 import { auth, db } from "../Firebase/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import {
@@ -12,12 +12,21 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from "firebase/auth";
-import bcrypt from "bcryptjs";  // Import bcrypt for hashing
+import bcrypt from "bcryptjs"; // Import bcrypt for hashing
+import {
+  setAuthTokens,
+  clearAuthTokens,
+  setSessionCookie,
+  validateSession,
+  getCookie
+  // makeAuthenticatedRequest,
+} from "../utlis/cookie-utils";
+import { getCSRFToken, validateCSRFToken } from "../utlis/csrf";
 
 const AuthContext = createContext(null);
 
 export function useAuth() {
-  return useContext(AuthContext);  // Now using the context correctly
+  return useContext(AuthContext);
 }
 
 export function AuthProvider({ children }) {
@@ -27,17 +36,26 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState("user");
   const [error, setError] = useState(null);
 
-  // Signup function with manual password hashing
+  const saveCSRFTokenToDatabase = async (userId, token) => {
+    const csrfDocRef = doc(db, "csrfTokens", userId);
+    await setDoc(csrfDocRef, { token });
+  };
+
+  const fetchCSRFTokenFromDatabase = async (userId) => {
+    const csrfDocRef = doc(db, "csrfTokens", userId);
+    const csrfDoc = await getDoc(csrfDocRef);
+    return csrfDoc.exists() ? csrfDoc.data().token : null;
+  };
+
   async function signup(email, password) {
     try {
-      // Hash password using bcrypt
-      const hashedPassword = bcrypt.hashSync(password, 10); // 10 is the salt rounds
-      
-      // Create user in Firebase Authentication
+      const hashedPassword = bcrypt.hashSync(password, 10);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
-      // Initialize wallet and cart with default values for the new user
+
+      const csrfToken = getCSRFToken();
+      await saveCSRFTokenToDatabase(user.uid, csrfToken);
+
       const userDocRef = doc(db, "users", user.uid);
       await setDoc(userDocRef, {
         email: user.email,
@@ -47,54 +65,70 @@ export function AuthProvider({ children }) {
         dateOfBirth: null,
         profilePicture: user.photoURL || null,
         role: "user",
-        hashedPassword: hashedPassword, // Store the hashed password in Firestore
+        hashedPassword: hashedPassword,
       });
 
       setCurrentUser(user);
       setError(null);
     } catch (error) {
       setError("Failed to sign up: " + error.message);
-      console.error("Failed to sign up:", error);
     }
   }
 
-  // Login function
-  async function login(email, password) {
+  async function login(email, password, csrfToken) {
     try {
+      validateCSRFToken(csrfToken);
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-  
-      // Fetch the user from Firestore
+
+      const idToken = await user.getIdToken();
+      const refreshToken = await user.getIdToken(true);
+
+      setAuthTokens(idToken, refreshToken);
+      setSessionCookie(idToken);
+
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
-  
       if (!userDoc.exists()) {
         throw new Error("No account found for this user.");
       }
-  
+
       setCurrentUser(user);
-      setError(null); // Clear any previous error state
+      setError(null);
+
+      return user;
     } catch (error) {
-      console.error("Failed to log in:", error);
-      throw new Error(error.message); // Re-throw the error for handleSubmit to catch
+      setError(error.message);
+      throw new Error(error.message);
     }
   }
 
-  // Logout function
-  function logout() {
-    return signOut(auth);
+  async function logout() {
+    try {
+      clearAuthTokens();
+      await signOut(auth);
+      setCurrentUser(null);
+    } catch (error) {
+      setError("Failed to log out: " + error.message);
+    }
   }
 
-  // Google login function
   async function loginWithGoogle() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-    
-      const userDocRef = doc(db, 'users', user.uid);
+
+      const idToken = await user.getIdToken();
+      const refreshToken = await user.getIdToken(true);
+
+      setAuthTokens(idToken, refreshToken);
+      setSessionCookie(idToken);
+
+      const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
-    
+
       if (!userDoc.exists()) {
         await setDoc(userDocRef, {
           name: user.displayName,
@@ -113,15 +147,18 @@ export function AuthProvider({ children }) {
     
         await updateDoc(userDocRef, updatedData);
       }
-  
-      return user;
+
+      // Generate and save CSRF token for Google login user
+      const csrfToken = getCSRFToken();
+      await saveCSRFTokenToDatabase(user.uid, csrfToken);
+
+      setCurrentUser(user);
     } catch (error) {
       setError("Failed to sign in with Google: " + error.message);
       console.error('Failed to sign in with Google', error);
     }
   }
 
-  // Reset password function
   async function resetPassword(email) {
     try {
       await sendPasswordResetEmail(auth, email);
@@ -130,7 +167,6 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Re-authenticate function
   async function reauthenticate(password) {
     const credential = EmailAuthProvider.credential(currentUser.email, password);
     try {
@@ -141,7 +177,6 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Change email function
   async function changeEmail(newEmail, password) {
     if (currentUser) {
       try {
@@ -157,13 +192,19 @@ export function AuthProvider({ children }) {
       }
     }
   }
-
-  // Monitor user state change
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(false);
   
       if (user) {
+        // Check if the session and token are valid
+        const isValidSession = validateSession();
+        if (!isValidSession) {
+          clearAuthTokens();
+          setCurrentUser(null);
+          return;
+        }
+  
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
   
@@ -174,17 +215,26 @@ export function AuthProvider({ children }) {
           setRole(userData.role || "user");
         } else {
           console.warn("User logged in but does not have a valid Firestore account.");
-          setCurrentUser(null); 
+          setCurrentUser(null);
         }
       } else {
-        setCurrentUser(null);
+        // Check for valid session cookies in case user refreshes page
+        const sessionToken = getCookie('session');
+        const accessToken = getCookie('accessToken');
+        
+        if (sessionToken && accessToken) {
+          // Token is valid, restore the session
+          setCurrentUser(user); // You may want to revalidate the user's Firestore info here
+        } else {
+          clearAuthTokens();
+          setCurrentUser(null);
+        }
       }
     });
   
     return unsubscribe;
   }, []);
-
-  // Function to update wallet balance in Firestore
+  
   const updateWallet = async (amount) => {
     if (currentUser) {
       const userDocRef = doc(db, "users", currentUser.uid);
