@@ -28,12 +28,10 @@ export default function SignUp() {
     window.scrollTo(0, 0);
   }, []);
 
-  // Handle form submission
   async function handleSubmit(e) {
     e.preventDefault();
     const csrfToken = getCSRFToken(); // Get CSRF token
 
-    // Password validation
     if (passwordRef.current.value !== passwordConfirmRef.current.value) {
       return setError('Passwords do not match');
     }
@@ -45,7 +43,6 @@ export default function SignUp() {
       const auth = getAuth();
       const methods = await fetchSignInMethodsForEmail(auth, emailRef.current.value);
 
-      // Check if email already exists
       if (methods.length > 0) {
         return setError('Email is already in use');
       }
@@ -69,9 +66,10 @@ export default function SignUp() {
         dateOfBirth: dobRef.current.value,
         profilePicture: defaultProfilePicture, // Use the default profile picture
         hashedPassword: hashedPassword, // Save the hashed password in Firestore
+  
       });
 
-      navigate('/'); // Redirect to the home page after sign-up
+      navigate('/');
     } catch (error) {
       console.error('Failed to create an account', error);
       setError(`Failed to create an account: ${error.message}`);
@@ -80,14 +78,12 @@ export default function SignUp() {
     }
   }
 
-  // Handle Google SignUp
   async function handleGoogleSignup() {
     try {
       setLoading(true);
       const user = await loginWithGoogle();
       const { displayName, email, photoURL } = user;
 
-      // Save user data to Firestore
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
         name: displayName,
@@ -96,7 +92,7 @@ export default function SignUp() {
         profilePicture: photoURL || defaultProfilePicture,
       });
 
-      navigate('/'); // Redirect to home page after Google sign-up
+      navigate('/');
     } catch (error) {
       console.error('Failed to sign up with Google', error);
       setError('Failed to sign up with Google');
@@ -197,6 +193,7 @@ export default function SignUp() {
           </div>
         </form>
       </div>
+
     </div>
   );
-}
+} 

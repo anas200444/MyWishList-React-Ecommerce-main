@@ -27,23 +27,15 @@ export default function Login() {
     }
   }, []);
 
-  // Handle form submission
   async function handleSubmit(e) {
     e.preventDefault();
     const csrfToken = getCSRFToken(); // Get CSRF token before submitting
-
+  
     try {
       setError('');
       setLoading(true);
       await login(emailRef.current.value, passwordRef.current.value, csrfToken); // Pass the CSRF token
-
-      // If 'Remember me' is checked, store email in localStorage
-      if (rememberRef.current.checked) {
-        localStorage.setItem('rememberedEmail', emailRef.current.value);
-      } else {
-        localStorage.removeItem('rememberedEmail');
-      }
-
+  
       // Redirect after successful login
       navigate('/');
     } catch (error) {
@@ -53,7 +45,6 @@ export default function Login() {
     }
   }
 
-  // Handle Google login
   async function handleGoogleLogin() {
     try {
       setLoading(true);
@@ -147,4 +138,4 @@ export default function Login() {
       </div>
     </div>
   );
-}
+} 
