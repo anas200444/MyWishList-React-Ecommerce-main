@@ -119,45 +119,44 @@ export function AuthProvider({ children }) {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-
-      const idToken = await user.getIdToken();
-      const refreshToken = await user.getIdToken(true);
-
-      setAuthTokens(idToken, refreshToken);
-      setSessionCookie(idToken);
-
+  
+      // Check if user already exists in Firestore
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
-
+  
       if (!userDoc.exists()) {
+        // If user does not exist, create a new document
         await setDoc(userDocRef, {
-          name: user.displayName,
+          name: user.displayName || "Unnamed",
           email: user.email,
-          dateOfBirth: null,
-          profilePicture: user.photoURL || null,
-          role: "user",
+          dateOfBirth: null,  // You can set this later if needed
+          profilePicture: user.photoURL || "https://example.com/default-profile-picture.png",
+          role: "user",  // Default role
         });
       } else {
+        // If user exists, update the user document if needed
         const userData = userDoc.data();
         const updatedData = {
           name: user.displayName || userData.name,
           email: user.email || userData.email,
           profilePicture: user.photoURL || userData.profilePicture,
         };
-    
         await updateDoc(userDocRef, updatedData);
       }
-
+  
       // Generate and save CSRF token for Google login user
       const csrfToken = getCSRFToken();
       await saveCSRFTokenToDatabase(user.uid, csrfToken);
-
+  
       setCurrentUser(user);
+      return user;
     } catch (error) {
       setError("Failed to sign in with Google: " + error.message);
-      console.error('Failed to sign in with Google', error);
+      console.error("Google sign-in failed:", error);
+      throw error;  // Re-throw error to notify caller
     }
   }
+  
 
   async function resetPassword(email) {
     try {
