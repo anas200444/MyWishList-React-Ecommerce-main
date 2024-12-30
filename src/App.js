@@ -10,72 +10,82 @@ import Login from "./User/Login";
 import SignUp from "./User/SignUp";
 import ForgotPassword from "./User/Forgotpassword";
 import Profile from "./User/Profile";
-import { AdminPanel } from "./Admin/AdminPanel"; 
-import { AdminRoute } from "./Routes/AdminRoute"; 
-import ProtectedRoute from "./Routes/ProtectedRoute"; 
+import { AdminPanel } from "./Admin/AdminPanel";
+import { AdminRoute } from "./Routes/AdminRoute";
+import ProtectedRoute from "./Routes/ProtectedRoute";
+import TwoFactorAuth from "./User/TowFactorAuth";
+import { AuthProvider } from "./User/AuthContext";
+//import PrivateRoute from "./Routes/PrivateRoute";
+import VerifyEmailHandler from "./User/VerifyEmailHandler"; // Correct Path
+
 
 function App() {
   return (
     <div className="App">
-      <ShopContextProvider>
-        <Navbar />
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/forgotpassword" element={<ForgotPassword />} />
+    <ShopContextProvider>
+      <Navbar />
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/forgotpassword" element={<ForgotPassword />} />
+        <Route path="/verify-email" element={<VerifyEmailHandler />} />
+        <Route path="/two-factor-auth" element={<TwoFactorAuth />} />
+        <Route path="/shop" element={<Shop />} />
+        {/* Handle Email Verification */}
+        <Route path="/__/auth/action" element={<VerifyEmailHandler />} />
 
-          {/* Protected Routes */}
-          <Route
+        {/* Protected Routes */}
+        <Route
             path="/"
-            element={
+          element={
               <ProtectedRoute>
-                <Shop />
+              <Shop />
               </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/contact"
-            element={
+          }
+        />
+        <Route
+          path="/contact"
+          element={
               <ProtectedRoute>
-                <Contact />
+              <Contact />
               </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/cart"
-            element={
+          }
+        />
+        <Route
+          path="/cart"
+          element={
               <ProtectedRoute>
-                <Cart />
+              <Cart />
               </ProtectedRoute>
-            }
-          />
-          <Route
+          }
+        />
+        <Route
             path="/gameplay"
-            element={
+          element={
               <ProtectedRoute>
-                <GamePlay />
+              <GamePlay />
               </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
+          }
+        />
+        <Route
+          path="/profile"
+          element={
               <ProtectedRoute>
-                <Profile />
+              <Profile />
               </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminPanel />
-              </AdminRoute>
-            }
-          />
-        </Routes>
-      </ShopContextProvider>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPanel />
+            </AdminRoute>
+          }
+        />
+      </Routes>
+    </ShopContextProvider>
     </div>
   );
 }
