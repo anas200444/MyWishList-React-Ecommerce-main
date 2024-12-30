@@ -1,4 +1,4 @@
-let csrfTokens = {}; // Store CSRF tokens temporarily in-memory
+let csrfTokens = {}; // Temporary in-memory storage for CSRF tokens (for server-side usage if applicable)
 
 /**
  * Retrieves the CSRF token from localStorage or generates a new one if not found.
@@ -7,10 +7,9 @@ let csrfTokens = {}; // Store CSRF tokens temporarily in-memory
 export function getCSRFToken() {
     const token = localStorage.getItem('csrfToken');
     if (!token) {
-        // Clear user session if token is missing
-        sessionStorage.clear(); // Clear sessionStorage as well
-        localStorage.clear();    // Clear localStorage
-        throw new Error("CSRF token is missing, session terminated.");
+        const newToken = generateCSRFToken();
+        setCSRFToken(newToken);
+        return newToken;
     }
     return token;
 }
@@ -21,13 +20,25 @@ export function getCSRFToken() {
  */
 export function generateCSRFToken() {
     return [...Array(36)]
-      .map((_, i) =>
-        (i === 8 || i === 13 || i === 18 || i === 23
-          ? "-"
-          : ((Math.random() * 16) | 0).toString(16)
+        .map((_, i) =>
+            (i === 8 || i === 13 || i === 18 || i === 23
+                ? "-"
+                : ((Math.random() * 16) | 0).toString(16)
+            )
         )
-      )
-      .join("");
+        .join("");
+}
+
+/**
+ * Stores the CSRF token in localStorage and sessionStorage.
+ * @param {string} token - The CSRF token to store.
+ */
+export function setCSRFToken(token) {
+    if (!token) {
+        throw new Error("Invalid CSRF token.");
+    }
+    localStorage.setItem('csrfToken', token);
+    sessionStorage.setItem('csrfToken', token);
 }
 
 /**
@@ -38,11 +49,20 @@ export function generateCSRFToken() {
 export function validateCSRFToken(receivedToken) {
     const storedToken = localStorage.getItem('csrfToken');
     if (!storedToken || receivedToken !== storedToken) {
-        sessionStorage.clear(); // Clear sessionStorage
-        localStorage.clear();    // Clear localStorage
-        throw new Error("CSRF token mismatch, session terminated.");
+        regenerateCSRFToken(); // Automatically regenerate the token on mismatch
+        throw new Error("CSRF token mismatch, token regenerated.");
     }
     return true;
+}
+
+/**
+ * Regenerates a new CSRF token and updates the storage.
+ * @returns {string} The newly generated CSRF token.
+ */
+export function regenerateCSRFToken() {
+    const newToken = generateCSRFToken();
+    setCSRFToken(newToken);
+    return newToken;
 }
 
 /**
@@ -52,7 +72,7 @@ export function validateCSRFToken(receivedToken) {
  */
 export function addCSRFTokenToRequest(options = {}) {
     const csrfToken = getCSRFToken();
-    
+
     if (!options.headers) {
         options.headers = {};
     }
