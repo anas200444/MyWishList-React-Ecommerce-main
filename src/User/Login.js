@@ -1,9 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useAuth } from '../User/AuthContext'; // Corrected path for AuthContext
+import { useAuth } from '../User/AuthContext'; 
 import { useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'; // Ensure you have the right package installed
-import { getCSRFToken } from '../utlis/csrf'; // Import CSRF token helper
+import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../Firebase/firebase';
+import { getCSRFToken } from '../utlis/csrf';
 
 export default function Login() {
   const emailRef = useRef();
@@ -12,7 +14,7 @@ export default function Login() {
   const { login, loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // State for password visibility
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,17 +31,37 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const csrfToken = getCSRFToken(); // Get CSRF token before submitting
-  
+    const csrfToken = await getCSRFToken();
+
     try {
       setError('');
       setLoading(true);
-      await login(emailRef.current.value, passwordRef.current.value, csrfToken); // Pass the CSRF token
-  
-      // Redirect after successful login
-      navigate('/');
+      const user = await login(emailRef.current.value, passwordRef.current.value, csrfToken);
+
+      if (rememberRef.current.checked) {
+        localStorage.setItem('rememberedEmail', emailRef.current.value);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+
+      // Navigate to 2FA page regardless of email verification status
+      navigate('/two-factor-auth'); 
+
+      // If email is not verified, send verification email and display a message
+      if (!user.emailVerified) {
+        const send2FACode = httpsCallable(functions, 'send2FACode');
+        await send2FACode({ email: user.email });
+        setError('Verification email sent. Please verify your email.'); 
+      } 
+
     } catch (error) {
-      setError(error.message || 'Failed to log in'); // Display a specific error message
+      if (error.code === 'auth/wrong-password') {
+        setError('Incorrect email or password.');
+      } else if (error.code === 'auth/user-not-found') {
+        setError('Email not found. Please create an account.');
+      } else {
+        setError('Failed to log in. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -48,15 +70,23 @@ export default function Login() {
   async function handleGoogleLogin() {
     try {
       setLoading(true);
-      await loginWithGoogle();
-      navigate('/');
-    } catch {
-      setError('Failed to log in with Google');
+      const user = await loginWithGoogle(); 
+
+      // Navigate to 2FA page regardless of email verification status
+      navigate('/two-factor-auth'); 
+
+      if (!user.emailVerified) {
+        const send2FACode = httpsCallable(functions, 'send2FACode');
+        await send2FACode({ email: user.email });
+        setError('Verification email sent. Please verify your email.'); 
+      } 
+
+    } catch (error) {
+      setError('Failed to log in with Google.');
     } finally {
       setLoading(false);
     }
   }
-
   return (
     <div className="container">
       <div className="login-box">
@@ -75,14 +105,13 @@ export default function Login() {
                 required
               />
               <span
-                className={`toggle-password-L ${showPassword ? 'open' : ''}`} // Add 'open' class based on state
+                className="toggle-password-L"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
               </span>
             </div>
           </div>
-
           <div className="remember-me">
             <input type="checkbox" ref={rememberRef} />
             <label>Remember me</label>
@@ -90,7 +119,6 @@ export default function Login() {
           <button type="submit" className="login-button" disabled={loading}>
             Log In
           </button>
-
           <button
             type="button"
             className="google-login-button"
@@ -127,7 +155,6 @@ export default function Login() {
               <span>Continue with Google</span>
             </div>
           </button>
-
           <div className="forgot-password">
             <Link to="/forgotpassword">Forgot password?</Link>
           </div>
@@ -138,4 +165,4 @@ export default function Login() {
       </div>
     </div>
   );
-} 
+}
