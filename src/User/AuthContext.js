@@ -119,11 +119,16 @@ export function AuthProvider({ children }) {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-  
-      // Check if user already exists in Firestore
+
+      const idToken = await user.getIdToken();
+      const refreshToken = await user.getIdToken(true);
+
+      setAuthTokens(idToken, refreshToken);
+      setSessionCookie(idToken);
+
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
-  
+
       if (!userDoc.exists()) {
         // If user does not exist, create a new document
         await setDoc(userDocRef, {
@@ -141,13 +146,14 @@ export function AuthProvider({ children }) {
           email: user.email || userData.email,
           profilePicture: user.photoURL || userData.profilePicture,
         };
+    
         await updateDoc(userDocRef, updatedData);
       }
-  
+
       // Generate and save CSRF token for Google login user
       const csrfToken = getCSRFToken();
       await saveCSRFTokenToDatabase(user.uid, csrfToken);
-  
+
       setCurrentUser(user);
       return user;
     } catch (error) {
@@ -156,7 +162,6 @@ export function AuthProvider({ children }) {
       throw error;  // Re-throw error to notify caller
     }
   }
-  
 
   async function resetPassword(email) {
     try {
