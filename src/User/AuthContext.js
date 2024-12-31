@@ -11,6 +11,7 @@ import {
   sendPasswordResetEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  sendEmailVerification,
 } from "firebase/auth";
 import bcrypt from "bcryptjs"; // Import bcrypt for hashing
 import {
@@ -47,40 +48,21 @@ export function AuthProvider({ children }) {
     return csrfDoc.exists() ? csrfDoc.data().token : null;
   };
 
-  async function signup(email, password) {
-    try {
-      const hashedPassword = bcrypt.hashSync(password, 10);
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+  
 
-      const csrfToken = getCSRFToken();
-      await saveCSRFTokenToDatabase(user.uid, csrfToken);
-
-      const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, {
-        email: user.email,
-        wallet: 0,
-        cartItems: {},
-        name: user.displayName || null,
-        dateOfBirth: null,
-        profilePicture: user.photoURL || null,
-        role: "user",
-        hashedPassword: hashedPassword,
-      });
-
-      setCurrentUser(user);
-      setError(null);
-    } catch (error) {
-      setError("Failed to sign up: " + error.message);
-    }
-  }
-
-  async function login(email, password, csrfToken) {
-    try {
+  
+// In the login function
+async function login(email, password, csrfToken) {
+  try {
       validateCSRFToken(csrfToken);
 
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+
+      // Check if the email is verified
+      if (!user.emailVerified) {
+          throw new Error("Please verify your email before logging in.");
+      }
 
       const idToken = await user.getIdToken();
       const refreshToken = await user.getIdToken(true);
@@ -91,19 +73,51 @@ export function AuthProvider({ children }) {
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
       if (!userDoc.exists()) {
-        throw new Error("No account found for this user.");
+          throw new Error("No account found for this user.");
       }
 
       setCurrentUser(user);
       setError(null);
 
       return user;
-    } catch (error) {
+  } catch (error) {
       setError(error.message);
       throw new Error(error.message);
-    }
   }
+}
 
+
+// In the signup function
+async function signup(email, password) {
+  try {
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Send email verification
+    await sendEmailVerification(user);
+
+    const csrfToken = getCSRFToken();
+    await saveCSRFTokenToDatabase(user.uid, csrfToken);
+
+    const userDocRef = doc(db, "users", user.uid);
+    await setDoc(userDocRef, {
+      email: user.email,
+      wallet: 0,
+      cartItems: {},
+      name: user.displayName || null,
+      dateOfBirth: null,
+      profilePicture: user.photoURL || null,
+      role: "user",
+      hashedPassword: hashedPassword,
+    });
+
+    setCurrentUser(user);
+    setError(null);
+  } catch (error) {
+    setError("Failed to sign up: " + error.message);
+  }
+}
   async function logout() {
     try {
       clearAuthTokens();

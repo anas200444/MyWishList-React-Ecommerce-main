@@ -29,21 +29,31 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const csrfToken = getCSRFToken(); // Get CSRF token before submitting
+    const csrfToken = getCSRFToken();
   
     try {
       setError('');
       setLoading(true);
-      await login(emailRef.current.value, passwordRef.current.value, csrfToken); // Pass the CSRF token
+      const user = await login(emailRef.current.value, passwordRef.current.value, csrfToken);
   
-      // Redirect after successful login
+      // Check if email is verified
+      if (!user.emailVerified) {
+        throw new Error("Please verify your email before logging in.");
+      }
+  
       navigate('/');
     } catch (error) {
-      setError(error.message || 'Failed to log in'); // Display a specific error message
+      if (error.message === "Please verify your email before logging in.") {
+        setError("Please verify your email. Check your inbox for a verification email.");
+      } else {
+        setError(error.message || 'Failed to log in');
+      }
     } finally {
       setLoading(false);
     }
   }
+  
+  
 
   async function handleGoogleLogin() {
     try {
