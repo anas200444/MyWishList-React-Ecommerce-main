@@ -3,6 +3,7 @@ import { getAuth, deleteUser } from 'firebase/auth';
 import { getFirestore, collection, getDocs, deleteDoc, doc } from 'firebase/firestore'; 
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from "firebase/database"; 
+import { getFunctions } from "firebase/functions"; // Import Functions
 const firebaseConfig = {
     apiKey: "AIzaSyD2yW5R21l6X5dUfLyq9Fd7U7MwP-IPDQs",
     authDomain: "websecurity-commerce.firebaseapp.com",
@@ -20,6 +21,7 @@ const db = getFirestore(app);
 const storage = getStorage(app); // Initialize storage
 const API_KEY = "AIzaSyDkeLw_pXFj5za2qaImIt8MnCss09L6Py0"; // Replace with your YouTube Data API key
 const realtimeDb = getDatabase(app);
+const functions = getFunctions(app); 
 async function deleteUserData(user) {
   try {
     const userEmail = user.email;
@@ -47,4 +49,4 @@ async function deleteUserData(user) {
   }
 }
 
-export { auth, db, storage, API_KEY, deleteUserData,realtimeDb };
+export { auth, db, storage, API_KEY, deleteUserData,realtimeDb,functions };
