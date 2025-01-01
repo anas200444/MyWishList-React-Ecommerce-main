@@ -30,36 +30,29 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault();
     const csrfToken = getCSRFToken();
-  
+
     try {
       setError('');
       setLoading(true);
-      const user = await login(emailRef.current.value, passwordRef.current.value, csrfToken);
-  
-      // Check if email is verified
-      if (!user.emailVerified) {
-        throw new Error("Please verify your email before logging in.");
-      }
-  
-      navigate('/');
+      await login(emailRef.current.value, passwordRef.current.value, csrfToken);
+      navigate('/'); // Redirect to the home page after successful login
     } catch (error) {
-      if (error.message === "Please verify your email before logging in.") {
-        setError("Please verify your email. Check your inbox for a verification email.");
-      } else {
-        setError(error.message || 'Failed to log in');
+      if (error.message.includes('verify your email')) {
+        setError(error.message);
+        setLoading(false);
+        return;
       }
+      setError(error.message || 'Failed to log in');
     } finally {
       setLoading(false);
     }
   }
-  
-  
 
   async function handleGoogleLogin() {
     try {
       setLoading(true);
       await loginWithGoogle();
-      navigate('/');
+      navigate('/'); // Redirect to the home page after successful login
     } catch {
       setError('Failed to log in with Google');
     } finally {
@@ -71,7 +64,7 @@ export default function Login() {
     <div className="container">
       <div className="login-box">
         <h2 className="login-text">Log In</h2>
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error">{error}</p>} {/* Display error if any */}
         <form onSubmit={handleSubmit}>
           <div className="input-group">
             <input type="email" ref={emailRef} placeholder="E-mail" required />
@@ -85,7 +78,7 @@ export default function Login() {
                 required
               />
               <span
-                className={`toggle-password-L ${showPassword ? 'open' : ''}`} // Add 'open' class based on state
+                className={`toggle-password-L ${showPassword ? 'open' : ''}`} // Corrected syntax for className
                 onClick={() => setShowPassword(!showPassword)}
               >
                 <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
@@ -109,6 +102,7 @@ export default function Login() {
           >
             <div className="gsi-material-button-content-wrapper">
               <div className="gsi-material-button-icon">
+                {/* Google SVG Icon */}
                 <svg
                   version="1.1"
                   xmlns="http://www.w3.org/2000/svg"
@@ -148,4 +142,4 @@ export default function Login() {
       </div>
     </div>
   );
-} 
+}

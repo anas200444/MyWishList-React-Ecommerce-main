@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { auth, db } from "../Firebase/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
@@ -11,16 +12,15 @@ import {
   sendPasswordResetEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
-  sendEmailVerification,
+  sendEmailVerification
 } from "firebase/auth";
-import bcrypt from "bcryptjs"; // Import bcrypt for hashing
+import bcrypt from "bcryptjs";
 import {
   setAuthTokens,
   clearAuthTokens,
   setSessionCookie,
   validateSession,
   getCookie
-  // makeAuthenticatedRequest,
 } from "../utlis/cookie-utils";
 import { getCSRFToken, validateCSRFToken } from "../utlis/csrf";
 
@@ -48,20 +48,16 @@ export function AuthProvider({ children }) {
     return csrfDoc.exists() ? csrfDoc.data().token : null;
   };
 
-  
-
-  
-// In the login function
-async function login(email, password, csrfToken) {
-  try {
+  async function login(email, password, csrfToken) {
+    try {
       validateCSRFToken(csrfToken);
-
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Check if the email is verified
       if (!user.emailVerified) {
-          throw new Error("Please verify your email before logging in.");
+        await sendEmailVerification(user);
+        localStorage.setItem('lastVerificationSent', new Date().toISOString());
+        throw new Error("Please verify your email before logging in. Verification email sent.");
       }
 
       const idToken = await user.getIdToken();
@@ -73,60 +69,62 @@ async function login(email, password, csrfToken) {
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
       if (!userDoc.exists()) {
-          throw new Error("No account found for this user.");
+        throw new Error("No account found for this user.");
       }
 
       setCurrentUser(user);
       setError(null);
-
       return user;
-  } catch (error) {
+    } catch (error) {
       setError(error.message);
-      throw new Error(error.message);
+      throw error;
+    }
   }
-}
 
+  async function signup(email, password) {
+    try {
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-// In the signup function
-async function signup(email, password) {
-  try {
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+      await sendEmailVerification(user);
 
-    // Send email verification
-    await sendEmailVerification(user);
+      const csrfToken = getCSRFToken();
+      await saveCSRFTokenToDatabase(user.uid, csrfToken);
 
-    const csrfToken = getCSRFToken();
-    await saveCSRFTokenToDatabase(user.uid, csrfToken);
+      const userDocRef = doc(db, "users", user.uid);
+      await setDoc(userDocRef, {
+        email: user.email,
+        wallet: 0,
+        cartItems: {},
+        name: user.displayName || null,
+        dateOfBirth: null,
+        profilePicture: user.photoURL || null,
+        role: "user",
+        hashedPassword: hashedPassword,
+        emailVerified: false,
+      });
 
-    const userDocRef = doc(db, "users", user.uid);
-    await setDoc(userDocRef, {
-      email: user.email,
-      wallet: 0,
-      cartItems: {},
-      name: user.displayName || null,
-      dateOfBirth: null,
-      profilePicture: user.photoURL || null,
-      role: "user",
-      hashedPassword: hashedPassword,
-    });
-
-    setCurrentUser(user);
-    setError(null);
-  } catch (error) {
-    setError("Failed to sign up: " + error.message);
+      setCurrentUser(user);
+      setError(null);
+      return user;
+    } catch (error) {
+      setError("Failed to sign up: " + error.message);
+      throw error;
+    }
   }
-}
+
   async function logout() {
     try {
-      clearAuthTokens();
-      await signOut(auth);
-      setCurrentUser(null);
+      localStorage.removeItem('lastVerificationSent'); // Remove the last verification timestamp
+      clearAuthTokens(); // Clear authentication tokens
+      await signOut(auth); // Sign out from Firebase
+      setCurrentUser(null); // Clear current user state
     } catch (error) {
       setError("Failed to log out: " + error.message);
     }
   }
+  
 
   async function loginWithGoogle() {
     const provider = new GoogleAuthProvider();
@@ -134,6 +132,11 @@ async function signup(email, password) {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
+      if (!user.emailVerified) {
+        await sendEmailVerification(user);
+        throw new Error("Please verify your email before logging in.");
+      }
+
       const idToken = await user.getIdToken();
       const refreshToken = await user.getIdToken(true);
 
@@ -144,27 +147,24 @@ async function signup(email, password) {
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
-        // If user does not exist, create a new document
         await setDoc(userDocRef, {
           name: user.displayName || "Unnamed",
           email: user.email,
-          dateOfBirth: null,  // You can set this later if needed
+          dateOfBirth: null,
           profilePicture: user.photoURL || "https://example.com/default-profile-picture.png",
-          role: "user",  // Default role
+          role: "user",
         });
       } else {
-        // If user exists, update the user document if needed
         const userData = userDoc.data();
         const updatedData = {
           name: user.displayName || userData.name,
           email: user.email || userData.email,
           profilePicture: user.photoURL || userData.profilePicture,
         };
-    
+
         await updateDoc(userDocRef, updatedData);
       }
 
-      // Generate and save CSRF token for Google login user
       const csrfToken = getCSRFToken();
       await saveCSRFTokenToDatabase(user.uid, csrfToken);
 
@@ -172,8 +172,7 @@ async function signup(email, password) {
       return user;
     } catch (error) {
       setError("Failed to sign in with Google: " + error.message);
-      console.error("Google sign-in failed:", error);
-      throw error;  // Re-throw error to notify caller
+      throw error;
     }
   }
 
@@ -191,7 +190,6 @@ async function signup(email, password) {
       await reauthenticateWithCredential(currentUser, credential);
     } catch (error) {
       setError("Error reauthenticating: " + error.message);
-      console.error("Error reauthenticating:", error);
     }
   }
 
@@ -206,26 +204,25 @@ async function signup(email, password) {
         setError(null);
       } catch (error) {
         setError("Error updating email: " + error.message);
-        console.error("Error updating email:", error);
       }
     }
   }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(false);
-  
+
       if (user) {
-        // Check if the session and token are valid
         const isValidSession = validateSession();
         if (!isValidSession) {
           clearAuthTokens();
           setCurrentUser(null);
           return;
         }
-  
+
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
-  
+
         if (userDoc.exists()) {
           setCurrentUser(user);
           const userData = userDoc.data();
@@ -236,23 +233,21 @@ async function signup(email, password) {
           setCurrentUser(null);
         }
       } else {
-        // Check for valid session cookies in case user refreshes page
         const sessionToken = getCookie('session');
         const accessToken = getCookie('accessToken');
-        
+
         if (sessionToken && accessToken) {
-          // Token is valid, restore the session
-          setCurrentUser(user); // You may want to revalidate the user's Firestore info here
+          setCurrentUser(user);
         } else {
           clearAuthTokens();
           setCurrentUser(null);
         }
       }
     });
-  
+
     return unsubscribe;
   }, []);
-  
+
   const updateWallet = async (amount) => {
     if (currentUser) {
       const userDocRef = doc(db, "users", currentUser.uid);
