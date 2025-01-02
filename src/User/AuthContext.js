@@ -41,11 +41,7 @@ export function AuthProvider({ children }) {
     await setDoc(csrfDocRef, { token });
   };
 
-  const fetchCSRFTokenFromDatabase = async (userId) => {
-    const csrfDocRef = doc(db, "csrfTokens", userId);
-    const csrfDoc = await getDoc(csrfDocRef);
-    return csrfDoc.exists() ? csrfDoc.data().token : null;
-  };
+
 
   async function signup(email, password) {
     try {

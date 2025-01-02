@@ -1,4 +1,5 @@
-let csrfTokens = {}; // Temporary in-memory storage for CSRF tokens (for server-side usage if applicable)
+// csrf.js
+export const csrfTokens = {}; // Export to make it used
 
 /**
  * Retrieves the CSRF token from localStorage or generates a new one if not found.
@@ -51,6 +52,7 @@ export function validateCSRFToken(receivedToken) {
     if (!storedToken || receivedToken !== storedToken) {
         regenerateCSRFToken(); // Automatically regenerate the token on mismatch
         throw new Error("CSRF token mismatch, token regenerated.");
+        // Removed unreachable code
     }
     return true;
 }
@@ -72,11 +74,13 @@ export function regenerateCSRFToken() {
  */
 export function addCSRFTokenToRequest(options = {}) {
     const csrfToken = getCSRFToken();
-
-    if (!options.headers) {
-        options.headers = {};
-    }
-
-    options.headers['X-CSRF-Token'] = csrfToken; // Add the CSRF token to request headers
-    return options;
+    const headers = options.headers || {};
+    
+    return {
+        ...options,
+        headers: {
+            ...headers,
+            'X-CSRF-Token': csrfToken
+        }
+    };
 }
