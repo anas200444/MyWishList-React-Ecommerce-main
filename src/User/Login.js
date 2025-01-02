@@ -1,9 +1,13 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { useAuth } from '../User/AuthContext'; // Corrected path for AuthContext
-import { useNavigate, Link } from 'react-router-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'; // Ensure you have the right package installed
-import { getCSRFToken } from '../utlis/csrf'; // Import CSRF token helper
+//login
+
+
+import React, { useRef, useState, useEffect } from "react";
+import { useAuth } from "../User/AuthContext";
+import { useNavigate, Link } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import { getCSRFToken } from "../utlis/csrf";
+
 
 export default function Login() {
   const emailRef = useRef();
@@ -12,7 +16,7 @@ export default function Login() {
   const { login, loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // State for password visibility
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,10 +36,23 @@ export default function Login() {
     const csrfToken = getCSRFToken();
 
     try {
-      setError('');
+      setError("");
       setLoading(true);
-      await login(emailRef.current.value, passwordRef.current.value, csrfToken);
-      navigate('/'); // Redirect to the home page after successful login
+
+      const response = await login(emailRef.current.value, passwordRef.current.value, csrfToken);
+
+      if (rememberRef.current.checked) {
+        localStorage.setItem("rememberedEmail", emailRef.current.value);
+      } else {
+        localStorage.removeItem("rememberedEmail");
+      }
+
+      if (response.requires2FA) {
+        // Pass the email to the 2FA page through state
+        navigate("/2fa", { state: { email: emailRef.current.value } });
+      } else {
+        navigate("/2fa");
+      }
     } catch (error) {
       if (error.message.includes('verify your email')) {
         setError(error.message);
@@ -64,7 +81,7 @@ export default function Login() {
     <div className="container">
       <div className="login-box">
         <h2 className="login-text">Log In</h2>
-        {error && <p className="error">{error}</p>} {/* Display error if any */}
+        {error && <p className="error">{error}</p>}
         <form onSubmit={handleSubmit}>
           <div className="input-group">
             <input type="email" ref={emailRef} placeholder="E-mail" required />
@@ -72,20 +89,22 @@ export default function Login() {
           <div className="input-group">
             <div className="password-input-wrapper">
               <input
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 ref={passwordRef}
                 placeholder="Password"
                 required
               />
               <span
-                className={`toggle-password-L ${showPassword ? 'open' : ''}`} // Corrected syntax for className
+                className="toggle-password"
                 onClick={() => setShowPassword(!showPassword)}
+                role="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={0}
               >
                 <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
               </span>
             </div>
           </div>
-
           <div className="remember-me">
             <input type="checkbox" ref={rememberRef} />
             <label>Remember me</label>

@@ -1,4 +1,4 @@
-
+// Updated AuthContext.js
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { auth, db } from "../Firebase/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
@@ -36,6 +36,8 @@ export function AuthProvider({ children }) {
   const [wallet, setWallet] = useState(0);
   const [role, setRole] = useState("user");
   const [error, setError] = useState(null);
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [email, setEmail] = useState("");
 
   const saveCSRFTokenToDatabase = async (userId, token) => {
     const csrfDocRef = doc(db, "csrfTokens", userId);
@@ -47,39 +49,6 @@ export function AuthProvider({ children }) {
     const csrfDoc = await getDoc(csrfDocRef);
     return csrfDoc.exists() ? csrfDoc.data().token : null;
   };
-
-  async function login(email, password, csrfToken) {
-    try {
-      validateCSRFToken(csrfToken);
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      if (!user.emailVerified) {
-        await sendEmailVerification(user);
-        localStorage.setItem('lastVerificationSent', new Date().toISOString());
-        throw new Error("Please verify your email before logging in. Verification email sent.");
-      }
-
-      const idToken = await user.getIdToken();
-      const refreshToken = await user.getIdToken(true);
-
-      setAuthTokens(idToken, refreshToken);
-      setSessionCookie(idToken);
-
-      const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (!userDoc.exists()) {
-        throw new Error("No account found for this user.");
-      }
-
-      setCurrentUser(user);
-      setError(null);
-      return user;
-    } catch (error) {
-      setError(error.message);
-      throw error;
-    }
-  }
 
   async function signup(email, password) {
     try {
@@ -102,30 +71,82 @@ export function AuthProvider({ children }) {
         profilePicture: user.photoURL || null,
         role: "user",
         hashedPassword: hashedPassword,
-        emailVerified: false,
+        requires2FA: false,
+        emailVerified: false
       });
 
       setCurrentUser(user);
       setError(null);
-      return user;
     } catch (error) {
       setError("Failed to sign up: " + error.message);
+    }
+  }
+
+  async function login(email, password, csrfToken) {
+    try {
+      validateCSRFToken(csrfToken);
+
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      if (!user.emailVerified) {
+        await sendEmailVerification(user);
+        throw new Error("Please verify your email before logging in. Verification email sent.");
+      }
+
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists() && userDoc.data().requires2FA) {
+        setEmail(email);
+        setRequires2FA(true);
+        return { requires2FA: true, user };
+      } else {
+        const idToken = await user.getIdToken();
+        const refreshToken = await user.getIdToken(true);
+
+        setAuthTokens(idToken, refreshToken);
+        setSessionCookie(idToken);
+
+        setCurrentUser(user);
+        setError(null);
+
+        return { requires2FA: false, user };
+      }
+    } catch (error) {
+      setError(error.message);
+      throw new Error(error.message);
+    }
+  }
+
+  async function verify2FA(code) {
+    try {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists() || userDoc.data().twoFactorCode !== code) {
+        throw new Error("Invalid 2FA code.");
+      }
+
+      await updateDoc(userDocRef, { twoFactorCode: null });
+      setRequires2FA(false);
+      return true;
+    } catch (error) {
+      setError("2FA verification failed: " + error.message);
       throw error;
     }
   }
 
   async function logout() {
     try {
-      localStorage.removeItem('lastVerificationSent'); // Remove the last verification timestamp
-      clearAuthTokens(); // Clear authentication tokens
-      await signOut(auth); // Sign out from Firebase
-      setCurrentUser(null); // Clear current user state
+      clearAuthTokens();
+      await signOut(auth);
+      setCurrentUser(null);
+      setRequires2FA(false);
     } catch (error) {
       setError("Failed to log out: " + error.message);
     }
   }
-  
-
   async function loginWithGoogle() {
     const provider = new GoogleAuthProvider();
     try {
@@ -176,37 +197,6 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function resetPassword(email) {
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (error) {
-      setError("Failed to reset password: " + error.message);
-    }
-  }
-
-  async function reauthenticate(password) {
-    const credential = EmailAuthProvider.credential(currentUser.email, password);
-    try {
-      await reauthenticateWithCredential(currentUser, credential);
-    } catch (error) {
-      setError("Error reauthenticating: " + error.message);
-    }
-  }
-
-  async function changeEmail(newEmail, password) {
-    if (currentUser) {
-      try {
-        await reauthenticate(password);
-        await updateDoc(doc(db, "users", currentUser.uid), {
-          email: newEmail,
-        });
-        alert("Email updated successfully");
-        setError(null);
-      } catch (error) {
-        setError("Error updating email: " + error.message);
-      }
-    }
-  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -228,13 +218,13 @@ export function AuthProvider({ children }) {
           const userData = userDoc.data();
           setWallet(userData.wallet || 0);
           setRole(userData.role || "user");
+          setRequires2FA(userData.requires2FA || false);
         } else {
-          console.warn("User logged in but does not have a valid Firestore account.");
           setCurrentUser(null);
         }
       } else {
-        const sessionToken = getCookie('session');
-        const accessToken = getCookie('accessToken');
+        const sessionToken = getCookie("session");
+        const accessToken = getCookie("accessToken");
 
         if (sessionToken && accessToken) {
           setCurrentUser(user);
@@ -247,6 +237,7 @@ export function AuthProvider({ children }) {
 
     return unsubscribe;
   }, []);
+  
 
   const updateWallet = async (amount) => {
     if (currentUser) {
@@ -255,19 +246,57 @@ export function AuthProvider({ children }) {
       setWallet(amount);
     }
   };
+  async function changeEmail(newEmail, password) {
+    if (currentUser) {
+      try {
+        await reauthenticate(password);
+        await updateDoc(doc(db, "users", currentUser.uid), {
+          email: newEmail,
+        });
+        alert("Email updated successfully");
+        setError(null);
+      } catch (error) {
+        setError("Error updating email: " + error.message);
+      }
+    }
+  }
+  async function resetPassword(email) {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      setError("Failed to reset password: " + error.message);
+    }
+  }
+
+  async function reauthenticate(password) {
+    const credential = EmailAuthProvider.credential(currentUser.email, password);
+    try {
+      await reauthenticateWithCredential(currentUser, credential);
+    } catch (error) {
+      setError("Error reauthenticating: " + error.message);
+    }
+  }
+
+
+
 
   const value = {
     currentUser,
     wallet,
     role,
     error,
+    requires2FA,
+    email,
+    setEmail,
     signup,
     login,
+    verify2FA,
     logout,
-    loginWithGoogle,
-    resetPassword,
-    changeEmail,
     updateWallet,
+    loginWithGoogle,
+    changeEmail,
+    resetPassword
+
   };
 
   return (
