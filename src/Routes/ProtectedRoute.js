@@ -1,46 +1,53 @@
+// protected.js
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../User/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../User/AuthContext'; // Custom hook for auth context
+import { useNavigate } from 'react-router-dom'; // Navigation hook
 import { validateSession, clearAuthTokens } from '../utlis/cookie-utils';
 
 const ProtectedRoute = ({ children }) => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, requires2FA } = useAuth(); // Auth context values
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Manage loading state
 
   useEffect(() => {
     const checkAuth = async () => {
       if (!currentUser) {
-        // If no user is logged in, validate session
+        // No user logged in: validate session
         const isValidSession = validateSession();
+
         if (!isValidSession) {
-          navigate('/login');
+          navigate('/login'); // Redirect to login if session is invalid
         } else {
-          // Automatically logout after 10 seconds if the user is still on the page
+          // Automatically logout after 1 hour
           setTimeout(async () => {
             await logout();
             clearAuthTokens();
             navigate('/login');
             alert('Session expired. You have been logged out.');
-          },  3600000); // 1 hour (in milliseconds)
+          }, 3600000); // 1 hour (in milliseconds)
         }
+      } else if (requires2FA) {
+        // User logged in but 2FA is required
+        navigate('/2fa');
       }
-      setLoading(false);
+
+      setLoading(false); // Stop loading after checks
     };
 
     checkAuth();
 
-    // Cleanup timeout on component unmount or if the user navigates away
+    // Cleanup timeout if component unmounts
     return () => {
-      // clear any timeouts on cleanup
       clearTimeout();
     };
-  }, [currentUser, logout, navigate]);
+  }, [currentUser, requires2FA, logout, navigate]);
 
   if (loading) {
+    // Show a loading indicator during authentication checks
     return <div>Loading...</div>;
   }
 
+  // Render children if the user is authenticated
   return currentUser ? children : null;
 };
 

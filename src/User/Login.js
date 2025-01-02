@@ -1,9 +1,13 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { useAuth } from '../User/AuthContext'; // Corrected path for AuthContext
-import { useNavigate, Link } from 'react-router-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'; // Ensure you have the right package installed
-import { getCSRFToken } from '../utlis/csrf'; // Import CSRF token helper
+//login
+
+
+import React, { useRef, useState, useEffect } from "react";
+import { useAuth } from "../User/AuthContext";
+import { useNavigate, Link } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import { getCSRFToken } from "../utlis/csrf";
+
 
 export default function Login() {
   const emailRef = useRef();
@@ -12,7 +16,7 @@ export default function Login() {
   const { login, loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // State for password visibility
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,17 +33,33 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const csrfToken = getCSRFToken(); // Get CSRF token before submitting
-  
+    const csrfToken = getCSRFToken();
+
     try {
-      setError('');
+      setError("");
       setLoading(true);
-      await login(emailRef.current.value, passwordRef.current.value, csrfToken); // Pass the CSRF token
-  
-      // Redirect after successful login
-      navigate('/');
+
+      const response = await login(emailRef.current.value, passwordRef.current.value, csrfToken);
+
+      if (rememberRef.current.checked) {
+        localStorage.setItem("rememberedEmail", emailRef.current.value);
+      } else {
+        localStorage.removeItem("rememberedEmail");
+      }
+
+      if (response.requires2FA) {
+        // Pass the email to the 2FA page through state
+        navigate("/2fa", { state: { email: emailRef.current.value } });
+      } else {
+        navigate("/2fa");
+      }
     } catch (error) {
-      setError(error.message || 'Failed to log in'); // Display a specific error message
+      if (error.message.includes('verify your email')) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+      setError(error.message || 'Failed to log in');
     } finally {
       setLoading(false);
     }
@@ -49,7 +69,7 @@ export default function Login() {
     try {
       setLoading(true);
       await loginWithGoogle();
-      navigate('/');
+      navigate('/'); // Redirect to the home page after successful login
     } catch {
       setError('Failed to log in with Google');
     } finally {
@@ -69,20 +89,22 @@ export default function Login() {
           <div className="input-group">
             <div className="password-input-wrapper">
               <input
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 ref={passwordRef}
                 placeholder="Password"
                 required
               />
               <span
-                className={`toggle-password-L ${showPassword ? 'open' : ''}`} // Add 'open' class based on state
+                className="toggle-password"
                 onClick={() => setShowPassword(!showPassword)}
+                role="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={0}
               >
                 <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
               </span>
             </div>
           </div>
-
           <div className="remember-me">
             <input type="checkbox" ref={rememberRef} />
             <label>Remember me</label>
@@ -99,6 +121,7 @@ export default function Login() {
           >
             <div className="gsi-material-button-content-wrapper">
               <div className="gsi-material-button-icon">
+                {/* Google SVG Icon */}
                 <svg
                   version="1.1"
                   xmlns="http://www.w3.org/2000/svg"
@@ -138,4 +161,4 @@ export default function Login() {
       </div>
     </div>
   );
-} 
+}
