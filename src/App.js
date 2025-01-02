@@ -1,5 +1,6 @@
+//app.js
 import "./App.css";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useNavigate } from "react-router-dom"; // Import useNavigate
 import { Navbar } from "./components/navbar";
 import { Shop } from "./pages/shop/shop";
 import { Contact } from "./pages/contact";
@@ -10,26 +11,57 @@ import Login from "./User/Login";
 import SignUp from "./User/SignUp";
 import ForgotPassword from "./User/Forgotpassword";
 import Profile from "./User/Profile";
-import { AdminPanel } from "./Admin/AdminPanel"; 
-import { AdminRoute } from "./Routes/AdminRoute"; 
-import ProtectedRoute from "./Routes/ProtectedRoute"; 
+import TwoFactorAuth from "./User/TwoFactorAuth";
+import { AdminPanel } from "./Admin/AdminPanel";
+import { AdminRoute } from "./Routes/AdminRoute";
+import ProtectedRoute from "./Routes/ProtectedRoute";
+import { useState, useEffect } from "react";
 
 function App() {
+  const [isVerified, setIsVerified] = useState(false);
+  const navigate = useNavigate(); // Use the useNavigate hook
+
+  useEffect(() => {
+    const storedVerificationStatus = localStorage.getItem("isVerified");
+    if (storedVerificationStatus === "true") {
+      setIsVerified(true);
+    }
+  }, []);
+
+  const handleVerificationComplete = (verified) => {
+    if (verified) {
+      console.log("Verification successful");
+      localStorage.setItem("isVerified", "true");
+      setIsVerified(true);
+    } else {
+      console.log("Verification failed");
+      localStorage.removeItem("isVerified");
+      setIsVerified(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsVerified(false);
+    localStorage.removeItem("isVerified");
+    navigate("/login"); // Redirect to the login page after logout
+  };
+
   return (
     <div className="App">
       <ShopContextProvider>
-        <Navbar />
+        {isVerified && <Navbar isVerified={isVerified} onLogout={handleLogout} />}
         <Routes>
-          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgotpassword" element={<ForgotPassword />} />
-
-          {/* Protected Routes */}
+          <Route
+            path="/2fa"
+            element={<TwoFactorAuth onVerificationComplete={handleVerificationComplete} />}
+          />
           <Route
             path="/"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute isVerified={isVerified}>
                 <Shop />
               </ProtectedRoute>
             }
@@ -37,7 +69,7 @@ function App() {
           <Route
             path="/contact"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute isVerified={isVerified}>
                 <Contact />
               </ProtectedRoute>
             }
@@ -45,7 +77,7 @@ function App() {
           <Route
             path="/cart"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute isVerified={isVerified}>
                 <Cart />
               </ProtectedRoute>
             }
@@ -53,7 +85,7 @@ function App() {
           <Route
             path="/gameplay"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute isVerified={isVerified}>
                 <GamePlay />
               </ProtectedRoute>
             }
@@ -61,7 +93,7 @@ function App() {
           <Route
             path="/profile"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute isVerified={isVerified}>
                 <Profile />
               </ProtectedRoute>
             }
