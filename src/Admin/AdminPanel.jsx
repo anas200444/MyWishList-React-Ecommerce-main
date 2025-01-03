@@ -43,7 +43,7 @@ export function AdminPanel() {
               <td>
                 {order.products.map((product) => product.name).join(", ")} {/* Assuming order contains products array */}
               </td>
-              <td>${order.totalPrice}</td> {/* Assuming order contains totalPrice */}
+              <td>${order.totalPrice}</td> {/* Asuming order contains totalPrice */}
             </tr>
           ))}
         </tbody>
